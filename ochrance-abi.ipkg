@@ -1,0 +1,16 @@
+-- SPDX-License-Identifier: PMPL-1.0-or-later
+package ochrance-abi
+version = 0.1.0
+authors = "Jonathan D.A. Jewell <jonathan.jewell@open.ac.uk>"
+brief = "Formally Verified ABI Definitions for Cryptographic Hashing"
+readme = "src/abi/README.md"
+license = "PMPL-1.0-or-later"
+langversion >= 0.8.0
+
+sourcedir = "src/abi"
+
+modules = Ochrance.ABI.Types
+        , Ochrance.ABI.Layout
+        , Ochrance.ABI.Foreign
+
+opts = "--total"

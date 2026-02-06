@@ -1,274 +1,107 @@
-// {{PROJECT}} FFI Implementation
+// SPDX-License-Identifier: PMPL-1.0-or-later
 //
-// This module implements the C-compatible FFI declared in src/abi/Foreign.idr
-// All types and layouts must match the Idris2 ABI definitions.
+// libochrance - C-compatible FFI implementation for cryptographic hashing
 //
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// This library provides memory-safe, formally-verified-ABI hash functions
+// callable from Idris2 via C FFI. All functions use platform-independent
+// byte representations.
 
 const std = @import("std");
+const crypto = std.crypto;
 
-// Version information (keep in sync with project)
-const VERSION = "0.1.0";
-const BUILD_INFO = "{{PROJECT}} built with Zig " ++ @import("builtin").zig_version_string;
+// ============================================================================
+// BLAKE3 Implementation
+// ============================================================================
 
-/// Thread-local error storage
-threadlocal var last_error: ?[]const u8 = null;
-
-/// Set the last error message
-fn setError(msg: []const u8) void {
-    last_error = msg;
+/// Hash arbitrary data with BLAKE3
+/// ABI Contract: data (const uint8_t*), len (size_t), out (uint8_t[32])
+export fn blake3_hash(data: [*c]const u8, len: usize, out: [*c]u8) void {
+    const input = data[0..len];
+    var hasher = crypto.hash.Blake3.init(.{});
+    hasher.update(input);
+    
+    var output: [32]u8 = undefined;
+    hasher.final(&output);
+    
+    // Copy to output buffer (ABI: contiguous 32 bytes)
+    @memcpy(out[0..32], &output);
 }
 
-/// Clear the last error
-fn clearError() void {
-    last_error = null;
+// ============================================================================
+// SHA-256 Implementation
+// ============================================================================
+
+/// Hash arbitrary data with SHA-256
+/// ABI Contract: data (const uint8_t*), len (size_t), out (uint8_t[32])
+export fn sha256_hash(data: [*c]const u8, len: usize, out: [*c]u8) void {
+    const input = data[0..len];
+    var hasher = crypto.hash.sha2.Sha256.init(.{});
+    hasher.update(input);
+    
+    var output: [32]u8 = undefined;
+    hasher.final(&output);
+    
+    @memcpy(out[0..32], &output);
 }
 
-//==============================================================================
-// Core Types (must match src/abi/Types.idr)
-//==============================================================================
+// ============================================================================
+// SHA3-256 Implementation
+// ============================================================================
 
-/// Result codes (must match Idris2 Result type)
-pub const Result = enum(c_int) {
-    ok = 0,
-    @"error" = 1,
-    invalid_param = 2,
-    out_of_memory = 3,
-    null_pointer = 4,
-};
-
-/// Library handle (opaque to prevent direct access)
-pub const Handle = opaque {
-    // Internal state hidden from C
-    allocator: std.mem.Allocator,
-    initialized: bool,
-    // Add your fields here
-};
-
-//==============================================================================
-// Library Lifecycle
-//==============================================================================
-
-/// Initialize the library
-/// Returns a handle, or null on failure
-export fn {{project}}_init() ?*Handle {
-    const allocator = std.heap.c_allocator;
-
-    const handle = allocator.create(Handle) catch {
-        setError("Failed to allocate handle");
-        return null;
-    };
-
-    // Initialize handle
-    handle.* = .{
-        .allocator = allocator,
-        .initialized = true,
-    };
-
-    clearError();
-    return handle;
+/// Hash arbitrary data with SHA3-256
+/// ABI Contract: data (const uint8_t*), len (size_t), out (uint8_t[32])
+export fn sha3_256_hash(data: [*c]const u8, len: usize, out: [*c]u8) void {
+    const input = data[0..len];
+    var hasher = crypto.hash.sha3.Sha3_256.init(.{});
+    hasher.update(input);
+    
+    var output: [32]u8 = undefined;
+    hasher.final(&output);
+    
+    @memcpy(out[0..32], &output);
 }
 
-/// Free the library handle
-export fn {{project}}_free(handle: ?*Handle) void {
-    const h = handle orelse return;
-    const allocator = h.allocator;
-
-    // Clean up resources
-    h.initialized = false;
-
-    allocator.destroy(h);
-    clearError();
-}
-
-//==============================================================================
-// Core Operations
-//==============================================================================
-
-/// Process data (example operation)
-export fn {{project}}_process(handle: ?*Handle, input: u32) Result {
-    const h = handle orelse {
-        setError("Null handle");
-        return .null_pointer;
-    };
-
-    if (!h.initialized) {
-        setError("Handle not initialized");
-        return .@"error";
-    }
-
-    // Example processing logic
-    _ = input;
-
-    clearError();
-    return .ok;
-}
-
-//==============================================================================
-// String Operations
-//==============================================================================
-
-/// Get a string result (example)
-/// Caller must free the returned string
-export fn {{project}}_get_string(handle: ?*Handle) ?[*:0]const u8 {
-    const h = handle orelse {
-        setError("Null handle");
-        return null;
-    };
-
-    if (!h.initialized) {
-        setError("Handle not initialized");
-        return null;
-    }
-
-    // Example: allocate and return a string
-    const result = h.allocator.dupeZ(u8, "Example result") catch {
-        setError("Failed to allocate string");
-        return null;
-    };
-
-    clearError();
-    return result.ptr;
-}
-
-/// Free a string allocated by the library
-export fn {{project}}_free_string(str: ?[*:0]const u8) void {
-    const s = str orelse return;
-    const allocator = std.heap.c_allocator;
-
-    const slice = std.mem.span(s);
-    allocator.free(slice);
-}
-
-//==============================================================================
-// Array/Buffer Operations
-//==============================================================================
-
-/// Process an array of data
-export fn {{project}}_process_array(
-    handle: ?*Handle,
-    buffer: ?[*]const u8,
-    len: u32,
-) Result {
-    const h = handle orelse {
-        setError("Null handle");
-        return .null_pointer;
-    };
-
-    const buf = buffer orelse {
-        setError("Null buffer");
-        return .null_pointer;
-    };
-
-    if (!h.initialized) {
-        setError("Handle not initialized");
-        return .@"error";
-    }
-
-    // Access the buffer
-    const data = buf[0..len];
-    _ = data;
-
-    // Process data here
-
-    clearError();
-    return .ok;
-}
-
-//==============================================================================
-// Error Handling
-//==============================================================================
-
-/// Get the last error message
-/// Returns null if no error
-export fn {{project}}_last_error() ?[*:0]const u8 {
-    const err = last_error orelse return null;
-
-    // Return C string (static storage, no need to free)
-    const allocator = std.heap.c_allocator;
-    const c_str = allocator.dupeZ(u8, err) catch return null;
-    return c_str.ptr;
-}
-
-//==============================================================================
-// Version Information
-//==============================================================================
-
-/// Get the library version
-export fn {{project}}_version() [*:0]const u8 {
-    return VERSION.ptr;
-}
-
-/// Get build information
-export fn {{project}}_build_info() [*:0]const u8 {
-    return BUILD_INFO.ptr;
-}
-
-//==============================================================================
-// Callback Support
-//==============================================================================
-
-/// Callback function type (C ABI)
-pub const Callback = *const fn (u64, u32) callconv(.C) u32;
-
-/// Register a callback
-export fn {{project}}_register_callback(
-    handle: ?*Handle,
-    callback: ?Callback,
-) Result {
-    const h = handle orelse {
-        setError("Null handle");
-        return .null_pointer;
-    };
-
-    const cb = callback orelse {
-        setError("Null callback");
-        return .null_pointer;
-    };
-
-    if (!h.initialized) {
-        setError("Handle not initialized");
-        return .@"error";
-    }
-
-    // Store callback for later use
-    _ = cb;
-
-    clearError();
-    return .ok;
-}
-
-//==============================================================================
-// Utility Functions
-//==============================================================================
-
-/// Check if handle is initialized
-export fn {{project}}_is_initialized(handle: ?*Handle) u32 {
-    const h = handle orelse return 0;
-    return if (h.initialized) 1 else 0;
-}
-
-//==============================================================================
+// ============================================================================
 // Tests
-//==============================================================================
+// ============================================================================
 
-test "lifecycle" {
-    const handle = {{project}}_init() orelse return error.InitFailed;
-    defer {{project}}_free(handle);
-
-    try std.testing.expect({{project}}_is_initialized(handle) == 1);
+test "blake3 empty string" {
+    const expected = "\xaf\x13\x49\xb9\xf5\xf9\xa1\xa6\xa0\x40\x4d\xea\x36\xdc\xc9\x49" ++
+                     "\x9b\xcb\x25\xc9\xad\xc1\x12\xb7\xcc\x9a\x93\xca\xe4\x1f\x32\x62";
+    
+    var output: [32]u8 = undefined;
+    blake3_hash("", 0, &output);
+    
+    try std.testing.expectEqualSlices(u8, expected, &output);
 }
 
-test "error handling" {
-    const result = {{project}}_process(null, 0);
-    try std.testing.expectEqual(Result.null_pointer, result);
-
-    const err = {{project}}_last_error();
-    try std.testing.expect(err != null);
+test "sha256 empty string" {
+    const expected = "\xe3\xb0\xc4\x42\x98\xfc\x1c\x14\x9a\xfb\xf4\xc8\x99\x6f\xb9\x24" ++
+                     "\x27\xae\x41\xe4\x64\x9b\x93\x4c\xa4\x95\x99\x1b\x78\x52\xb8\x55";
+    
+    var output: [32]u8 = undefined;
+    sha256_hash("", 0, &output);
+    
+    try std.testing.expectEqualSlices(u8, expected, &output);
 }
 
-test "version" {
-    const ver = {{project}}_version();
-    const ver_str = std.mem.span(ver);
-    try std.testing.expectEqualStrings(VERSION, ver_str);
+test "sha3_256 empty string" {
+    const expected = "\xa7\xff\xc6\xf8\xbf\x1e\xd7\x66\x51\xc1\x47\x56\xa0\x61\xd6\x62" ++
+                     "\xf5\x80\xff\x4d\xe4\x3b\x49\xfa\x82\xd8\x0a\x4b\x80\xf8\x43\x4a";
+    
+    var output: [32]u8 = undefined;
+    sha3_256_hash("", 0, &output);
+    
+    try std.testing.expectEqualSlices(u8, expected, &output);
+}
+
+test "blake3 abc" {
+    const input = "abc";
+    const expected = "\x6a\x99\xd6\x59\xa8\x17\xfe\xea\x61\x63\x9d\x5d\xd3\x6f\x57\x66" ++
+                     "\x0c\x87\xfe\xeb\xf7\xf3\xd3\x06\xe4\xd5\xe6\xa6\x8e\x4e\xd7\x6f";
+    
+    var output: [32]u8 = undefined;
+    blake3_hash(input, input.len, &output);
+    
+    try std.testing.expectEqualSlices(u8, expected, &output);
 }
