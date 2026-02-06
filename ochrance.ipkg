@@ -1,0 +1,22 @@
+-- SPDX-License-Identifier: PMPL-1.0-or-later
+package ochrance
+version = 0.1.0
+authors = "Jonathan D.A. Jewell <jonathan.jewell@open.ac.uk>"
+brief = "Neurosymbolic Filesystem Verification with Dependent Types"
+readme = "README.adoc"
+license = "PMPL-1.0-or-later"
+langversion >= 0.8.0
+
+sourcedir = "ochrance-core"
+
+modules = Ochrance.A2ML.Types
+        , Ochrance.A2ML.Lexer
+        , Ochrance.A2ML.Parser
+        , Ochrance.A2ML.Validator
+        , Ochrance.A2ML.Serializer
+        , Ochrance.Framework.Interface
+        , Ochrance.Framework.Proof
+        , Ochrance.Framework.Error
+        , Ochrance.FFI.Echidna
+
+opts = "--total"

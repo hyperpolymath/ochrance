@@ -1,0 +1,66 @@
+= Ochránce
+Jonathan D.A. Jewell <jonathan.jewell@open.ac.uk>
+v0.1.0, 2026-02-06
+:toc:
+:icons: font
+:source-highlighter: rouge
+
+== Overview
+
+**Ochránce** is a neurosymbolic filesystem verification framework built with Idris2 dependent types. It provides mathematically proven guarantees about filesystem integrity through:
+
+* **A2ML** (Attestation & Audit Markup Language) - A formally specified markup for filesystem manifests
+* **Verified Merkle trees** - Size-indexed binary trees with compile-time structure proofs
+* **Linear type repair** - Filesystem repair operations that prevent use-after-repair bugs
+* **ECHIDNA integration** - Neural proof synthesis for automated verification
+
+== Architecture
+
+[source]
+----
+┌─────────────────────────────────────────────┐
+│            Ochránce (Idris2)                │
+│                                              │
+│  A2ML Parser/Validator ←→ Merkle Trees      │
+│         ↓                     ↓              │
+│  VerifiedSubsystem Interface                 │
+│         ↓                                    │
+│  Filesystem Module (reference impl)          │
+└──────────────┬──────────────────────────────┘
+               │ C FFI
+               ↓
+┌──────────────────────────────────────────────┐
+│          ECHIDNA (Rust/Julia)                │
+│  Neural proof synthesis + Multi-prover       │
+└──────────────────────────────────────────────┘
+----
+
+== Quick Start
+
+[source,bash]
+----
+# Requires Idris2 0.8.0+
+idris2 --build ochrance.ipkg
+----
+
+== Verification Modes
+
+[cols="1,3"]
+|===
+|Mode |Description
+
+|**Lax**
+|Parse manifest only, skip hash verification
+
+|**Checked**
+|Verify all block hashes match Merkle root
+
+|**Attested**
+|Checked + verify cryptographic attestation signature
+|===
+
+== License
+
+SPDX-License-Identifier: PMPL-1.0-or-later
+
+Copyright (C) 2026 Jonathan D.A. Jewell. All rights reserved.

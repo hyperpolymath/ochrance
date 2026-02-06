@@ -1,0 +1,18 @@
+-- SPDX-License-Identifier: PMPL-1.0-or-later
+package ochrance-fs
+version = 0.1.0
+authors = "Jonathan D.A. Jewell <jonathan.jewell@open.ac.uk>"
+brief = "Ochránce Filesystem Module - Merkle tree verification and repair"
+license = "PMPL-1.0-or-later"
+langversion >= 0.8.0
+
+depends = ochrance
+
+sourcedir = "modules"
+
+modules = Ochrance.Filesystem.Types
+        , Ochrance.Filesystem.Merkle
+        , Ochrance.Filesystem.Verify
+        , Ochrance.Filesystem.Repair
+
+opts = "--total"
