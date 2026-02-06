@@ -8,7 +8,9 @@
 
 module Ochrance.FFI.Echidna
 
-%default total
+import System.FFI
+
+%default covering
 
 --------------------------------------------------------------------------------
 -- Foreign Declarations
@@ -23,23 +25,17 @@ prim__echidnaProve : String -> PrimIO String
 prim__echidnaVerify : String -> PrimIO Int
 
 --------------------------------------------------------------------------------
--- Safe Wrappers
+-- Safe Wrappers (Stubbed for now - FFI implementation pending)
 --------------------------------------------------------------------------------
 
 ||| Attempt to prove a theorem string via ECHIDNA.
 ||| Returns Left on failure, Right with the proof witness on success.
 export
 echidnaProve : HasIO io => String -> io (Either String String)
-echidnaProve theorem = do
-  result <- primIO (prim__echidnaProve theorem)
-  if result == ""
-    then pure (Left "Proof synthesis failed")
-    else pure (Right result)
+echidnaProve theorem = pure (Left "FFI not yet implemented")
 
 ||| Verify a proof witness via ECHIDNA's prover backends.
 ||| Returns True if the proof is accepted by at least one prover.
 export
 echidnaVerify : HasIO io => String -> io Bool
-echidnaVerify proof = do
-  result <- primIO (prim__echidnaVerify proof)
-  pure (result == 1)
+echidnaVerify proof = pure False

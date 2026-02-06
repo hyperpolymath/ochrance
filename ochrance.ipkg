@@ -17,6 +17,5 @@ modules = Ochrance.A2ML.Types
         , Ochrance.Framework.Interface
         , Ochrance.Framework.Proof
         , Ochrance.Framework.Error
-        , Ochrance.FFI.Echidna
 
 opts = "--total"

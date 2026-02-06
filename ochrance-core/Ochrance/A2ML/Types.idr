@@ -8,6 +8,7 @@
 module Ochrance.A2ML.Types
 
 import Data.List
+import Data.Maybe
 import Data.String
 
 %default total

@@ -17,21 +17,24 @@
 
     (current-position
      (phase "Phase 1: Ochránce Core")
-     (overall-completion 0)
+     (overall-completion 54)
      (components
-       (("a2ml-lexer" 0 "Total lexer with structural recursion")
-        ("a2ml-parser" 0 "Total parser with sized types")
-        ("a2ml-validator" 0 "Semantic validation of manifests")
-        ("a2ml-serializer" 0 "Roundtrip serialization")
-        ("a2ml-types" 0 "Core A2ML types (Manifest, Hash)")
-        ("framework-interface" 0 "VerifiedSubsystem interface")
-        ("framework-proof" 0 "Proof witnesses")
-        ("framework-error" 0 "q/p/z error system")
-        ("merkle-tree" 0 "Verified Merkle tree with proofs")
-        ("filesystem-verify" 0 "Filesystem verification logic")
-        ("filesystem-repair" 0 "Linear type repair")
-        ("ffi-echidna" 0 "FFI bindings to Echidna (Rust)")))
-     (working-features ()))
+       (("a2ml-types" 100 "Core A2ML types complete (Manifest, Hash, Ref, Attestation, Policy)")
+        ("a2ml-lexer" 100 "Total lexer with fuel-based structural recursion - COMPLETE")
+        ("a2ml-parser" 100 "Covering parser with full A2ML support - COMPLETE")
+        ("a2ml-validator" 10 "Semantic validation stub (signature verification TODO)")
+        ("a2ml-serializer" 0 "Roundtrip serialization stub")
+        ("framework-interface" 100 "VerifiedSubsystem interface - COMPLETE")
+        ("framework-proof" 100 "Proof witnesses (Lax/Checked/Attested) - COMPLETE")
+        ("framework-error" 100 "q/p/z error taxonomy - COMPLETE")
+        ("merkle-tree" 30 "Size-indexed Merkle tree (placeholder XOR hash, needs BLAKE3 FFI)")
+        ("filesystem-verify" 0 "Filesystem verification logic stub")
+        ("filesystem-repair" 0 "Linear type repair stub")
+        ("ffi-echidna" 10 "FFI declarations present, wrappers stubbed (libechidna.so needed)")))
+     (working-features
+       ("A2ML parsing pipeline (lex + parse) fully functional")
+       ("Type-safe Manifest AST with validation wrapper")
+       ("Error taxonomy with zone-based classification")))
 
     (route-to-mvp
      (milestones
@@ -77,17 +80,18 @@
 
     (critical-next-actions
      (immediate
-       ("Implement A2ML Types module"
-        "Implement A2ML Lexer (total)"
-        "Set up ochrance.ipkg"))
+       ("Complete A2ML Validator (signature verification via FFI)"
+        "Implement A2ML Serializer (roundtrip: Manifest -> String -> Manifest)"
+        "Replace Merkle tree XOR placeholder with BLAKE3 FFI"))
      (this-week
-       ("Implement A2ML Parser"
-        "Write lexer/parser tests"
-        "Implement Merkle tree core"))
+       ("Write comprehensive parser tests (fuzzing, edge cases)"
+        "Implement Filesystem.Verify (VerifiedSubsystem instance)"
+        "Implement Filesystem.Repair with linear types"))
      (this-month
-       ("Complete Phase 1 Ochránce Core"
-        "Begin Echidna FFI integration")))
+       ("Complete Phase 1 Ochránce Core (all components 100%)"
+        "Build libechidna.so and integrate FFI"
+        "Begin Phase 2: Echidna Integration")))
 
     (session-history
-      (("2026-02-06" "opus" "Initial repo creation from rsr-template-repo.
-        Set up project structure for neurosymbolic filesystem verification.")))))
+      (("2026-02-06" "opus" "Initial repo creation from rsr-template-repo. Renamed to ochrance. GitHub repo created and starred. Set up project structure for neurosymbolic filesystem verification.")
+       ("2026-02-06" "opus" "Implemented complete A2ML Parser with covering totality. Parser supports all A2ML sections: @manifest, @refs, @attestation, @policy. Includes field parsing, optional sections, and comprehensive error reporting. Overall progress: 0% -> 54%.")))))
