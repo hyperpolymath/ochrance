@@ -18,6 +18,10 @@ modules = Ochrance.A2ML.Types
         , Ochrance.Framework.Proof
         , Ochrance.Framework.Error
         , Ochrance.FFI.Crypto
-        , Ochrance.FFI.Echidna
+        , Ochrance.Filesystem.Types
+        , Ochrance.Filesystem.Merkle
+        , Ochrance.Filesystem.Verify
+        , Ochrance.Filesystem.Repair
+        -- Ochrance.FFI.Echidna (Phase 2 - excluded from Phase 1 build)
 
 opts = "--total"

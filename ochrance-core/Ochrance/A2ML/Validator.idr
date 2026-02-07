@@ -8,6 +8,7 @@
 
 module Ochrance.A2ML.Validator
 
+import Data.Vect
 import Ochrance.A2ML.Types
 import Ochrance.Framework.Error
 import Ochrance.FFI.Crypto
@@ -79,6 +80,29 @@ validateManifest m = do
   -- Wrap in ValidManifest
   Right (MkValidManifest m)
 
+--------------------------------------------------------------------------------
+-- Helper Functions
+--------------------------------------------------------------------------------
+
+stringToBytes : String -> List Bits8
+stringToBytes s = map (cast . ord) (unpack s)
+
+refToBytes : Ref -> List Bits8
+refToBytes r = stringToBytes (r.name ++ show r.hash)
+
+serializeForSigning : Manifest -> List Bits8
+serializeForSigning m =
+  let versionBytes = stringToBytes m.manifestData.version
+      subsystemBytes = stringToBytes m.manifestData.subsystem
+      refsBytes = concatMap refToBytes m.refs
+  in versionBytes ++ subsystemBytes ++ refsBytes
+
+verifySignatureStub : String -> String -> Vect 32 Bits8 -> Bool
+verifySignatureStub sig pubkey hash =
+  -- TODO: Implement Ed25519 signature verification via FFI
+  -- For now, accept all signatures in Lax mode
+  True
+
 ||| Validate a complete manifest with signature verification (IO version).
 ||| This performs full validation including cryptographic signature checks.
 export
@@ -102,27 +126,6 @@ validateManifestIO m = do
           if signatureValid
              then pure (Right (MkValidManifest m))
              else pure (Left SignatureVerificationFailed)
-  where
-    -- Serialize manifest fields for signing (deterministic order)
-    serializeForSigning : Manifest -> List Bits8
-    serializeForSigning m =
-      let versionBytes = stringToBytes m.manifestData.version
-          subsystemBytes = stringToBytes m.manifestData.subsystem
-          refsBytes = concatMap refToBytes m.refs
-      in versionBytes ++ subsystemBytes ++ refsBytes
-
-    stringToBytes : String -> List Bits8
-    stringToBytes s = map (cast . ord) (unpack s)
-
-    refToBytes : Ref -> List Bits8
-    refToBytes r = stringToBytes (r.name ++ show r.hash)
-
-    -- Signature verification stub (requires Ed25519 FFI implementation)
-    verifySignatureStub : String -> String -> Vect 32 Bits8 -> Bool
-    verifySignatureStub sig pubkey hash =
-      -- TODO: Implement Ed25519 signature verification via FFI
-      -- For now, accept all signatures in Lax mode
-      True
 
 --------------------------------------------------------------------------------
 -- Policy Validation

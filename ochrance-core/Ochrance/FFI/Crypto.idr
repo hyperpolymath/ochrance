@@ -8,99 +8,35 @@
 module Ochrance.FFI.Crypto
 
 import Data.Vect
-import System.FFI
+import Data.Bits
 
 %default total
 
 --------------------------------------------------------------------------------
--- Foreign Declarations
+-- Foreign Declarations (Stubbed - FFI not fully implemented)
 --------------------------------------------------------------------------------
 
-||| Hash arbitrary bytes with BLAKE3
-||| ABI: blake3_hash(const uint8_t* data, size_t len, uint8_t out[32])
-%foreign "C:blake3_hash,libochrance"
-prim__blake3Hash : Ptr -> Int -> Ptr -> PrimIO ()
-
-||| Hash arbitrary bytes with SHA-256
-||| ABI: sha256_hash(const uint8_t* data, size_t len, uint8_t out[32])
-%foreign "C:sha256_hash,libochrance"
-prim__sha256Hash : Ptr -> Int -> Ptr -> PrimIO ()
-
-||| Hash arbitrary bytes with SHA3-256
-||| ABI: sha3_256_hash(const uint8_t* data, size_t len, uint8_t out[32])
-%foreign "C:sha3_256_hash,libochrance"
-prim__sha3_256Hash : Ptr -> Int -> Ptr -> PrimIO ()
+-- FFI declarations removed for Phase 1 build
+-- TODO: Add proper FFI declarations when libochrance.so is integrated
 
 --------------------------------------------------------------------------------
--- Safe Wrappers
+-- Stub Wrappers (FFI not integrated yet)
 --------------------------------------------------------------------------------
 
-||| Hash bytes with BLAKE3, returning a 32-byte hash
+||| Hash bytes with BLAKE3 (stub - returns placeholder)
 export
 blake3 : HasIO io => List Bits8 -> io (Vect 32 Bits8)
-blake3 bytes = do
-  -- Allocate input and output buffers
-  inputPtr <- primIO $ prim__castPtr (believe_me bytes)
-  outputBuf <- primIO $ prim__malloc 32
+blake3 bytes = pure (replicate 32 0)  -- Stub: returns zeros
 
-  -- Call FFI function
-  primIO $ prim__blake3Hash inputPtr (cast $ length bytes) outputBuf
-
-  -- Read output into Vect
-  result <- primIO $ readBytes outputBuf 32
-  primIO $ prim__free outputBuf
-
-  pure (believe_me result)  -- Safe: we know it's exactly 32 bytes
-  where
-    -- Helper to read bytes from buffer
-    readBytes : Ptr -> Nat -> PrimIO (List Bits8)
-    readBytes ptr 0 = pure []
-    readBytes ptr (S k) = do
-      byte <- prim__peek8 ptr 0
-      rest <- readBytes (prim__offsetPtr ptr 1) k
-      pure (byte :: rest)
-
-||| Hash bytes with SHA-256, returning a 32-byte hash
+||| Hash bytes with SHA-256 (stub - returns placeholder)
 export
 sha256 : HasIO io => List Bits8 -> io (Vect 32 Bits8)
-sha256 bytes = do
-  inputPtr <- primIO $ prim__castPtr (believe_me bytes)
-  outputBuf <- primIO $ prim__malloc 32
+sha256 bytes = pure (replicate 32 0)  -- Stub: returns zeros
 
-  primIO $ prim__sha256Hash inputPtr (cast $ length bytes) outputBuf
-
-  result <- primIO $ readBytes outputBuf 32
-  primIO $ prim__free outputBuf
-
-  pure (believe_me result)
-  where
-    readBytes : Ptr -> Nat -> PrimIO (List Bits8)
-    readBytes ptr 0 = pure []
-    readBytes ptr (S k) = do
-      byte <- prim__peek8 ptr 0
-      rest <- readBytes (prim__offsetPtr ptr 1) k
-      pure (byte :: rest)
-
-||| Hash bytes with SHA3-256, returning a 32-byte hash
+||| Hash bytes with SHA3-256 (stub - returns placeholder)
 export
 sha3_256 : HasIO io => List Bits8 -> io (Vect 32 Bits8)
-sha3_256 bytes = do
-  inputPtr <- primIO $ prim__castPtr (believe_me bytes)
-  outputBuf <- primIO $ prim__malloc 32
-
-  primIO $ prim__sha3_256Hash inputPtr (cast $ length bytes) outputBuf
-
-  result <- primIO $ readBytes outputBuf 32
-  primIO $ prim__free outputBuf
-
-  pure (believe_me result)
-  where
-    readBytes : Ptr -> Nat -> PrimIO (List Bits8)
-    readBytes ptr 0 = pure []
-    readBytes ptr (S k) = do
-      byte <- prim__peek8 ptr 0
-      rest <- readBytes (prim__offsetPtr ptr 1) k
-      pure (byte :: rest)
+sha3_256 bytes = pure (replicate 32 0)  -- Stub: returns zeros
 
 --------------------------------------------------------------------------------
 -- Pure Hash Combiners (for Merkle trees)

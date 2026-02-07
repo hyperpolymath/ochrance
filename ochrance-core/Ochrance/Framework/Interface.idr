@@ -30,5 +30,6 @@ interface VerifiedSubsystem (state : Type) where
   ||| Verify state against a validated manifest
   verify : state -> ValidManifest -> Either OchranceError (VerificationProof state)
 
-  ||| Attempt to repair state to match manifest (consumes old state)
-  repair : (1 _ : state) -> ValidManifest -> IO (Either OchranceError state)
+  ||| Attempt to repair state to match manifest
+  ||| Note: Linear types temporarily disabled for Phase 1
+  repair : state -> ValidManifest -> IO (Either OchranceError state)

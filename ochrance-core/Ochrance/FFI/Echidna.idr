@@ -10,7 +10,7 @@ module Ochrance.FFI.Echidna
 
 import System.FFI
 
-%default covering
+%default total
 
 --------------------------------------------------------------------------------
 -- Foreign Declarations
