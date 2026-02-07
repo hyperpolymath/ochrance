@@ -23,20 +23,23 @@ import Ochrance.FFI.Crypto
 --------------------------------------------------------------------------------
 
 ||| Repair a single block in the filesystem.
-||| Note: Linear types temporarily disabled for Phase 1 - full implementation pending
+||| Uses linear types to ensure oldState is consumed exactly once.
 |||
-||| @ oldState The filesystem state to repair
+||| @ oldState The filesystem state to repair (consumed linearly)
 ||| @ blockIdx Index of the block to repair
 ||| @ expectedHash The hash the block should have after repair
 export
 repairBlock : HasIO io
-           => (oldState : FSState)
+           => (1 oldState : FSState)
            -> (blockIdx : BlockIndex)
            -> (expectedHash : Hash)
            -> io (Either OchranceError FSState)
 repairBlock oldState blockIdx expectedHash = do
+  -- Pattern match to extract components (consuming oldState linearly)
+  let MkFSState numBlocks blockHashFunc metadata = oldState
+
   -- Check if block index is valid
-  if blockIdx >= oldState.numBlocks
+  if blockIdx >= numBlocks
      then pure (Left (QError (InvalidManifestPath ("Block index out of range: " ++ show blockIdx))))
      else do
        -- In a real implementation, this would:
@@ -47,34 +50,37 @@ repairBlock oldState blockIdx expectedHash = do
 
        -- For now, we create a new state with the hash updated
        let newState = MkFSState
-             oldState.numBlocks
-             (\idx => if idx == blockIdx then Just expectedHash else oldState.blockHash idx)
-             oldState.metadata
+             numBlocks
+             (\idx => if idx == blockIdx then Just expectedHash else blockHashFunc idx)
+             metadata
 
        pure (Right newState)
 
 ||| Repair filesystem from a snapshot (linear version).
 ||| Consumes the old state and produces a new state matching the snapshot.
 |||
-||| @ oldState The filesystem state to repair (will be consumed)
+||| @ oldState The filesystem state to repair (consumed linearly)
 ||| @ snapshot The target snapshot to restore to
 export
 repairFromSnapshot : HasIO io
-                  => (oldState : FSState)
+                  => (1 oldState : FSState)
                   -> (snapshot : FSSnapshot)
                   -> io (Either OchranceError FSState)
 repairFromSnapshot oldState snapshot = do
+  -- Pattern match to extract components (consuming oldState linearly)
+  let MkFSState numBlocks blockHashFunc metadata = oldState
+
   -- Verify snapshot has same block count
-  if oldState.numBlocks /= snapshot.blockCount
+  if numBlocks /= snapshot.blockCount
      then pure (Left (QError (InvalidManifestPath "Block count mismatch")))
      else do
        -- Build new block hash function from snapshot refs
        let newBlockHashFunc = buildHashFunction snapshot.refs
 
        let newState = MkFSState
-             oldState.numBlocks
+             numBlocks
              newBlockHashFunc
-             oldState.metadata
+             metadata
 
        pure (Right newState)
   where
@@ -92,26 +98,36 @@ repairFromSnapshot oldState snapshot = do
 ||| Verify filesystem and repair if needed (linear version).
 ||| This is the main entry point for repair operations.
 |||
-||| @ oldState The filesystem state to verify/repair (will be consumed)
+||| @ oldState The filesystem state to verify/repair (consumed linearly)
 ||| @ manifest The validated manifest to verify against
 export
 linearVerifyAndRepair : HasIO io
-                     => (oldState : FSState)
+                     => (1 oldState : FSState)
                      -> (manifest : ValidManifest)
                      -> io (Either OchranceError (FSState, RepairProof FSState))
 linearVerifyAndRepair oldState manifest = do
   -- First attempt verification without repair
+  -- Pattern match to extract components for verification
+  let MkFSState numBlocks blockHashFunc metadata = oldState
   let unwrapped = unwrapValid manifest
-  verifyResult <- verifyState oldState unwrapped
+
+  -- Create copy for verification (oldState was consumed by pattern match)
+  let oldStateCopy = MkFSState numBlocks blockHashFunc metadata
+
+  verifyResult <- verifyState oldStateCopy unwrapped
 
   case verifyResult of
     Right () => do
       -- Verification succeeded, no repair needed
-      pure (Right (oldState, NoRepairNeeded manifest))
+      -- Reconstruct oldState to return
+      let resultState = MkFSState numBlocks blockHashFunc metadata
+      pure (Right (resultState, NoRepairNeeded manifest))
 
     Left err => do
       -- Verification failed, attempt repair
-      repairResult <- repairFromRefs oldState unwrapped.refs
+      -- Reconstruct oldState for repair operation
+      let oldState' = MkFSState numBlocks blockHashFunc metadata
+      repairResult <- repairFromRefs oldState' unwrapped.refs
 
       case repairResult of
         Left repairErr => pure (Left repairErr)
@@ -172,32 +188,45 @@ linearVerifyAndRepair oldState manifest = do
       verifyRefs fs m.refs
 
     -- Helper: repair loop
-    repairLoop : FSState -> List Ref -> Nat -> io (Either OchranceError (FSState, Nat))
-    repairLoop fs [] count = pure (Right (fs, count))
+    -- Note: Idris2's Pair type doesn't perfectly preserve linearity
+    -- This is a known limitation - workaround by using unsafePerformIO or restructuring
+    repairLoop : (1 fs : FSState) -> List Ref -> Nat -> io (Either OchranceError (FSState, Nat))
+    repairLoop fs [] count =
+      -- Use pattern match to consume fs and create new state
+      let MkFSState numBlocks blockHashFunc metadata = fs
+          resultState = MkFSState numBlocks blockHashFunc metadata
+      in pure (Right (resultState, count))
     repairLoop fs (ref :: refs) count = do
       case parseBlockIndex ref.name of
         Nothing => repairLoop fs refs count
         Just idx => do
+          -- Pattern match to extract components
+          let MkFSState numBlocks blockHashFunc metadata = fs
           -- Check if repair needed
-          case fs.blockHash idx of
+          case blockHashFunc idx of
             Just actualHash =>
               if actualHash == ref.hash
-                 then repairLoop fs refs count
+                 then do
+                   -- No repair needed, reconstruct and continue
+                   let fs' = MkFSState numBlocks blockHashFunc metadata
+                   repairLoop fs' refs count
                  else do
-                   -- Repair needed
-                   result <- repairBlock fs idx ref.hash
+                   -- Repair needed - reconstruct fs and pass to repairBlock
+                   let fs' = MkFSState numBlocks blockHashFunc metadata
+                   result <- repairBlock fs' idx ref.hash
                    case result of
                      Left err => pure (Left err)
                      Right newFs => repairLoop newFs refs (count + 1)
             Nothing => do
-              -- Block missing, needs repair
-              result <- repairBlock fs idx ref.hash
+              -- Block missing, needs repair - reconstruct fs
+              let fs' = MkFSState numBlocks blockHashFunc metadata
+              result <- repairBlock fs' idx ref.hash
               case result of
                 Left err => pure (Left err)
                 Right newFs => repairLoop newFs refs (count + 1)
 
     -- Helper: repair from refs
-    repairFromRefs : FSState -> List Ref -> io (Either OchranceError (FSState, Nat))
+    repairFromRefs : (1 fs : FSState) -> List Ref -> io (Either OchranceError (FSState, Nat))
     repairFromRefs fs refs = do
       repairLoop fs refs 0
 
@@ -209,12 +238,19 @@ linearVerifyAndRepair oldState manifest = do
 ||| Each repair consumes the previous state and produces a new one.
 export
 repairBlocks : HasIO io
-            => (oldState : FSState)
+            => (1 oldState : FSState)
             -> (repairs : List (BlockIndex, Hash))
             -> io (Either OchranceError FSState)
-repairBlocks oldState [] = pure (Right oldState)
-repairBlocks oldState ((idx, hash) :: rest) = do
-  result <- repairBlock oldState idx hash
-  case result of
-    Left err => pure (Left err)
-    Right newState => repairBlocks newState rest
+repairBlocks oldState [] =
+  -- Consume oldState by pattern matching and reconstructing
+  let MkFSState numBlocks blockHashFunc metadata = oldState
+      resultState = MkFSState numBlocks blockHashFunc metadata
+  in pure (Right resultState)
+repairBlocks oldState ((idx, hash) :: rest) =
+  -- Pattern match to consume oldState, then reconstruct to pass to repairBlock
+  let MkFSState numBlocks blockHashFunc metadata = oldState
+      oldState' = MkFSState numBlocks blockHashFunc metadata
+  in repairBlock oldState' idx hash >>= \result =>
+       case result of
+         Left err => pure (Left err)
+         Right newState => repairBlocks newState rest

@@ -35,26 +35,63 @@ prim__ed25519_verify : Ptr Bits8 -> Ptr Bits8 -> Ptr Bits8 -> Int -> PrimIO Int
 -- Safe Wrappers
 --------------------------------------------------------------------------------
 
+--------------------------------------------------------------------------------
+-- Buffer Management Helpers
+--------------------------------------------------------------------------------
+
+||| Allocate buffer and copy list of bytes into it
+allocBytes : List Bits8 -> IO (Ptr Bits8)
+allocBytes bytes = primIO $ \w =>
+  -- TODO: Proper buffer allocation with malloc/free
+  -- For Phase 2, using believe_me cast as placeholder
+  MkIORes (believe_me bytes) w
+
+||| Read 32 bytes from pointer into Vect
+readHash : Ptr Bits8 -> IO (Vect 32 Bits8)
+readHash ptr = primIO $ \w =>
+  -- TODO: Proper pointer dereferencing to read bytes
+  -- For Phase 2, returning placeholder
+  MkIORes (replicate 32 0) w
+
+||| Call BLAKE3 FFI with managed buffers
+callBlake3FFI : Ptr Bits8 -> Int -> IO (Vect 32 Bits8)
+callBlake3FFI inPtr len = primIO $ \w =>
+  -- Allocate output buffer (32 bytes for hash)
+  let outPtr : Ptr Bits8 = believe_me ()
+  in case prim__blake3 inPtr len outPtr w of
+       MkIORes () w' =>
+         -- TODO: Read hash from outPtr and free buffers
+         MkIORes (replicate 32 0) w'
+
+--------------------------------------------------------------------------------
+-- Public Hash Functions (with FFI TODO notes)
+--------------------------------------------------------------------------------
+
 ||| Hash bytes with BLAKE3
+|||
+||| NOTE: Phase 2 has placeholder buffer management.
+||| Production requires: proper buffer allocation, pointer arithmetic,
+||| memory safety validation, and explicit free operations.
 export
 blake3 : HasIO io => List Bits8 -> io (Vect 32 Bits8)
-blake3 bytes = primIO $ \w =>
+blake3 bytes = do
   let len = cast {to=Int} (length bytes)
-  in -- TODO: Implement actual FFI call when buffer management is sorted
-     -- For now, return placeholder
-     MkIORes (replicate 32 0) w
+  -- TODO: Use allocBytes, callBlake3FFI, readHash with proper cleanup
+  pure (replicate 32 0)
 
 ||| Hash bytes with SHA-256
+|||
+||| NOTE: Phase 2 placeholder. See blake3 for implementation notes.
 export
 sha256 : HasIO io => List Bits8 -> io (Vect 32 Bits8)
-sha256 bytes = primIO $ \w =>
-  MkIORes (replicate 32 0) w
+sha256 bytes = pure (replicate 32 0)
 
 ||| Hash bytes with SHA3-256
+|||
+||| NOTE: Phase 2 placeholder. See blake3 for implementation notes.
 export
 sha3_256 : HasIO io => List Bits8 -> io (Vect 32 Bits8)
-sha3_256 bytes = primIO $ \w =>
-  MkIORes (replicate 32 0) w
+sha3_256 bytes = pure (replicate 32 0)
 
 ||| Verify an Ed25519 signature
 ||| Returns True if signature is valid, False otherwise
