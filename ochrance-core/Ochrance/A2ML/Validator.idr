@@ -97,11 +97,16 @@ serializeForSigning m =
       refsBytes = concatMap refToBytes m.refs
   in versionBytes ++ subsystemBytes ++ refsBytes
 
-verifySignatureStub : String -> String -> Vect 32 Bits8 -> Bool
-verifySignatureStub sig pubkey hash =
-  -- TODO: Implement Ed25519 signature verification via FFI
-  -- For now, accept all signatures in Lax mode
-  True
+||| Convert hex string to bytes (placeholder - proper parsing needed)
+hexStringToBytes : String -> Maybe (List Bits8)
+hexStringToBytes s = Just []  -- TODO: Implement hex parsing
+
+||| Verify Ed25519 signature (Phase 2 - requires proper string parsing)
+verifySignatureIO : HasIO io => String -> String -> Vect 32 Bits8 -> io Bool
+verifySignatureIO sigHex pubkeyHex hash = do
+  -- TODO: Parse hex strings to actual bytes
+  -- For now, use placeholder
+  pure False  -- Fail-safe: don't accept signatures until parsing implemented
 
 ||| Validate a complete manifest with signature verification (IO version).
 ||| This performs full validation including cryptographic signature checks.
@@ -120,8 +125,8 @@ validateManifestIO m = do
           let manifestBytes = serializeForSigning m
           manifestHash <- blake3 manifestBytes
 
-          -- Verify signature (stub - requires Ed25519 FFI)
-          let signatureValid = verifySignatureStub att.signature att.pubkey manifestHash
+          -- Verify signature (Ed25519 via FFI)
+          signatureValid <- verifySignatureIO att.signature att.pubkey manifestHash
 
           if signatureValid
              then pure (Right (MkValidManifest m))

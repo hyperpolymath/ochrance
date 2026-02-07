@@ -62,6 +62,42 @@ export fn sha3_256_hash(data: [*c]const u8, len: usize, out: [*c]u8) void {
 }
 
 // ============================================================================
+// Ed25519 Signature Verification
+// ============================================================================
+
+/// Verify an Ed25519 signature
+/// ABI Contract:
+///   signature: const uint8_t[64] - Ed25519 signature bytes
+///   public_key: const uint8_t[32] - Ed25519 public key bytes
+///   message: const uint8_t* - Message that was signed
+///   msg_len: size_t - Length of message
+/// Returns: 1 if valid, 0 if invalid
+export fn ed25519_verify(
+    signature: [*c]const u8,
+    public_key: [*c]const u8,
+    message: [*c]const u8,
+    msg_len: usize
+) c_int {
+    // Convert C pointers to Zig arrays
+    const sig_bytes: *const [64]u8 = @ptrCast(signature);
+    const pubkey_bytes: *const [32]u8 = @ptrCast(public_key);
+    const msg = message[0..msg_len];
+
+    // Parse signature and public key
+    const ed_sig = crypto.sign.Ed25519.Signature.fromBytes(sig_bytes.*);
+    const ed_pubkey = crypto.sign.Ed25519.PublicKey.fromBytes(pubkey_bytes.*) catch {
+        return 0; // Invalid public key format
+    };
+
+    // Verify signature
+    ed_sig.verify(msg, ed_pubkey) catch {
+        return 0; // Verification failed
+    };
+
+    return 1; // Verification succeeded
+}
+
+// ============================================================================
 // Tests
 // ============================================================================
 
@@ -104,4 +140,49 @@ test "blake3 abc" {
     blake3_hash(input, input.len, &output);
 
     try std.testing.expectEqualSlices(u8, expected, &output);
+}
+
+test "ed25519 valid signature" {
+    // Generate a keypair for testing
+    const seed: [32]u8 = [_]u8{1} ** 32;
+    const keypair = try crypto.sign.Ed25519.KeyPair.generateDeterministic(seed);
+
+    // Sign a message
+    const message = "test message";
+    const signature = try keypair.sign(message, null);
+
+    // Convert signature to bytes
+    const sig_bytes = signature.toBytes();
+    const pubkey_bytes = keypair.public_key.toBytes();
+
+    // Verify signature through FFI
+    const result = ed25519_verify(
+        &sig_bytes,
+        &pubkey_bytes,
+        message.ptr,
+        message.len
+    );
+
+    try std.testing.expectEqual(@as(c_int, 1), result);
+}
+
+test "ed25519 invalid signature" {
+    // Generate a keypair
+    const seed: [32]u8 = [_]u8{1} ** 32;
+    const keypair = try crypto.sign.Ed25519.KeyPair.generateDeterministic(seed);
+
+    // Create an invalid signature (all zeros)
+    const invalid_sig: [64]u8 = [_]u8{0} ** 64;
+    const pubkey_bytes = keypair.public_key.toBytes();
+
+    // Try to verify invalid signature
+    const message = "test message";
+    const result = ed25519_verify(
+        &invalid_sig,
+        &pubkey_bytes,
+        message.ptr,
+        message.len
+    );
+
+    try std.testing.expectEqual(@as(c_int, 0), result);
 }
