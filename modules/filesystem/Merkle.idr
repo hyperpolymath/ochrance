@@ -10,6 +10,7 @@ module Ochrance.Filesystem.Merkle
 
 import Data.Vect
 import Ochrance.A2ML.Types
+import Ochrance.FFI.Crypto
 
 %default total
 
@@ -40,18 +41,25 @@ data MerkleTree : Nat -> Type where
   ||| An internal node combining two subtrees of equal height
   Node : MerkleTree n -> MerkleTree n -> MerkleTree (S n)
 
-||| Extract the root hash of a Merkle tree.
+||| Extract the root hash of a Merkle tree (pure placeholder version).
 ||| For leaves, this is the leaf hash itself.
-||| For nodes, this combines the children's hashes.
+||| For nodes, this combines the children's hashes using XOR placeholder.
+|||
+||| NOTE: This uses XOR for totality. Use rootHashBytesIO for cryptographic hashing.
 public export
 rootHashBytes : MerkleTree n -> HashBytes
 rootHashBytes (Leaf h)   = h
-rootHashBytes (Node l r) = hashPair (rootHashBytes l) (rootHashBytes r)
-  where
-    ||| Combine two hashes into one.
-    ||| TODO: Replace with FFI call to BLAKE3 or SHA-256
-    hashPair : HashBytes -> HashBytes -> HashBytes
-    hashPair h1 h2 = zipWith xor h1 h2  -- placeholder: XOR is NOT cryptographic
+rootHashBytes (Node l r) = hashPairStub (rootHashBytes l) (rootHashBytes r)
+
+||| Extract the root hash using BLAKE3 (IO version).
+||| This is the cryptographically secure version that should be used in production.
+export
+rootHashBytesIO : HasIO io => MerkleTree n -> io HashBytes
+rootHashBytesIO (Leaf h) = pure h
+rootHashBytesIO (Node l r) = do
+  lHash <- rootHashBytesIO l
+  rHash <- rootHashBytesIO r
+  hashPairBlake3 lHash rHash
 
 --------------------------------------------------------------------------------
 -- Merkle Proof (inclusion proof)
@@ -79,13 +87,27 @@ buildMerkleTree {n = S k} hashes  =
   let (left, right) = splitAt (power 2 k) hashes
   in Node (buildMerkleTree left) (buildMerkleTree right)
 
-||| Verify a Merkle inclusion proof against a known root.
+||| Verify a Merkle inclusion proof against a known root (placeholder version).
+||| Uses XOR for totality. Use verifyProofIO for cryptographic verification.
 public export
 verifyProof : (root : HashBytes) -> (leaf : HashBytes) -> MerkleProof -> Bool
 verifyProof root leaf [] = root == leaf
 verifyProof root leaf ((GoLeft, sibling) :: rest) =
-  let parent = zipWith xor leaf sibling  -- placeholder hash
+  let parent = hashPairStub leaf sibling
   in verifyProof root parent rest
 verifyProof root leaf ((GoRight, sibling) :: rest) =
-  let parent = zipWith xor sibling leaf  -- placeholder hash
+  let parent = hashPairStub sibling leaf
   in verifyProof root parent rest
+
+||| Verify a Merkle inclusion proof using BLAKE3 (IO version).
+||| This is the cryptographically secure version for production use.
+export
+verifyProofIO : HasIO io => (root : HashBytes) -> (leaf : HashBytes)
+             -> MerkleProof -> io Bool
+verifyProofIO root leaf [] = pure (root == leaf)
+verifyProofIO root leaf ((GoLeft, sibling) :: rest) = do
+  parent <- hashPairBlake3 leaf sibling
+  verifyProofIO root parent rest
+verifyProofIO root leaf ((GoRight, sibling) :: rest) = do
+  parent <- hashPairBlake3 sibling leaf
+  verifyProofIO root parent rest

@@ -21,7 +21,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - language: javascript-typescript
+          # Idris2 is not supported by CodeQL, so we scan workflow files only
+          - language: actions
             build-mode: none
 
     steps:
