@@ -9,6 +9,7 @@
 module Ochrance.A2ML.Validator
 
 import Data.Vect
+import Data.Maybe
 import Ochrance.A2ML.Types
 import Ochrance.Framework.Error
 import Ochrance.FFI.Crypto
@@ -97,16 +98,12 @@ serializeForSigning m =
       refsBytes = concatMap refToBytes m.refs
   in versionBytes ++ subsystemBytes ++ refsBytes
 
-||| Convert hex string to bytes (placeholder - proper parsing needed)
-hexStringToBytes : String -> Maybe (List Bits8)
-hexStringToBytes s = Just []  -- TODO: Implement hex parsing
-
-||| Verify Ed25519 signature (Phase 2 - requires proper string parsing)
+||| Verify Ed25519 signature
 verifySignatureIO : HasIO io => String -> String -> Vect 32 Bits8 -> io Bool
 verifySignatureIO sigHex pubkeyHex hash = do
-  -- TODO: Parse hex strings to actual bytes
-  -- For now, use placeholder
-  pure False  -- Fail-safe: don't accept signatures until parsing implemented
+  -- Verify signature using Ed25519 FFI
+  result <- ed25519VerifyHex sigHex pubkeyHex (toList hash)
+  pure (fromMaybe False result)  -- Return False if parsing failed
 
 ||| Validate a complete manifest with signature verification (IO version).
 ||| This performs full validation including cryptographic signature checks.

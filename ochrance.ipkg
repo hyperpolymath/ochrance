@@ -18,6 +18,7 @@ modules = Ochrance.A2ML.Types
         , Ochrance.Framework.Proof
         , Ochrance.Framework.Error
         , Ochrance.FFI.Crypto
+        , Ochrance.Util.Hex
         , Ochrance.Filesystem.Types
         , Ochrance.Filesystem.Merkle
         , Ochrance.Filesystem.Verify

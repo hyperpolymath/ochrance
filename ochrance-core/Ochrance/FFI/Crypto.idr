@@ -11,6 +11,7 @@ module Ochrance.FFI.Crypto
 import Data.Vect
 import Data.Bits
 import System.FFI
+import Ochrance.Util.Hex
 
 %default total
 
@@ -67,6 +68,23 @@ ed25519Verify sig pubkey msg = primIO $ \w =>
   -- TODO: Implement actual FFI call when buffer management is sorted
   -- For now, return placeholder (always fails for safety)
   MkIORes False w
+
+||| Verify an Ed25519 signature from hex-encoded strings
+||| This is a convenience wrapper for the common case of hex-encoded signatures
+export
+ed25519VerifyHex : HasIO io
+                => (signatureHex : String)
+                -> (publicKeyHex : String)
+                -> (message : List Bits8)
+                -> io (Maybe Bool)
+ed25519VerifyHex sigHex pkHex msg = do
+  case hexStringToVect 64 sigHex of
+    Nothing => pure Nothing  -- Invalid signature format
+    Just sig => case hexStringToVect 32 pkHex of
+      Nothing => pure Nothing  -- Invalid public key format
+      Just pk => do
+        result <- ed25519Verify sig pk msg
+        pure (Just result)
 
 --------------------------------------------------------------------------------
 -- Pure Hash Combiners (for Merkle trees)
