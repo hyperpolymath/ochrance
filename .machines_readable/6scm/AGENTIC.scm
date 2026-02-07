@@ -1,5 +1,5 @@
 ;; SPDX-License-Identifier: PMPL-1.0-or-later
-;; AGENTIC.scm - AI agent interaction patterns for rsr-template-repo
+;; AGENTIC.scm - AI agent interaction patterns for ochrance
 
 (define agentic-config
   `((version . "1.0.0")
@@ -8,9 +8,11 @@
        (tools . ("read" "edit" "bash" "grep" "glob"))
        (permissions . "read-all")))
     (patterns
-      ((code-review . "thorough")
-       (refactoring . "conservative")
-       (testing . "comprehensive")))
+      ((code-review . "totality-focused")
+       (refactoring . "proof-preserving")
+       (testing . "property-based")))
     (constraints
-      ((languages . ())
-       (banned . ("typescript" "go" "python" "makefile"))))))
+      ((languages . ("idris2" "zig" "rust" "julia"))
+       (banned . ("typescript" "go" "python" "makefile"))
+       (idris2-requirements . ("%default total" "structural-recursion" "explicit-exports"))
+       (totality . "all-functions-must-be-total")))))

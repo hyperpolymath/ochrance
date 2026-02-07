@@ -1,22 +1,175 @@
 // SPDX-License-Identifier: PMPL-1.0-or-later
-= YOUR Template Repo Roadmap
+= Ochránce Development Roadmap
+Jonathan D.A. Jewell <jonathan.jewell@open.ac.uk>
+v0.1.0, 2026-02-07
+:toc:
+:icons: font
 
 == Current Status
 
-Initial development phase.
+**Phase 1: Ochránce Core** (54% complete - In Progress)
 
-== Milestones
+The A2ML parsing pipeline is fully functional with total lexer and covering parser. Type-safe framework with q/p/z error taxonomy is complete. Current focus: completing validator, serializer, and Merkle tree implementation.
 
-=== v0.1.0 - Foundation
-* [ ] Core functionality
-* [ ] Basic documentation
-* [ ] CI/CD pipeline
+== Development Phases
 
-=== v1.0.0 - Stable Release
-* [ ] Full feature set
-* [ ] Comprehensive tests
-* [ ] Production ready
+=== Phase 1: Ochránce Core (v0.1.0) - **In Progress**
 
-== Future Directions
+Target: Complete core verification framework with full A2ML support
 
-_To be determined based on community feedback._
+**Completion: 54%**
+
+Components:
+
+* [x] A2ML Lexer (total, tested)
+* [x] A2ML Parser (total, tested)
+* [ ] A2ML Validator (comprehensive signature verification)
+* [ ] A2ML Serializer (roundtrip: Manifest ↔ String)
+* [x] Framework Interface (VerifiedSubsystem)
+* [x] Proof Witnesses (Lax/Checked/Attested modes)
+* [x] Error Taxonomy (q/p/z classification)
+* [ ] Merkle Tree Implementation (size-indexed, needs BLAKE3 FFI)
+* [ ] Filesystem Verification (VerifiedSubsystem instance)
+* [ ] Linear Type Repair (consume-old-state semantics)
+* [ ] Integration Tests (50+ scenarios)
+
+**Critical Next Actions:**
+
+1. Complete A2ML Validator (signature verification via FFI)
+2. Implement A2ML Serializer (roundtrip verification)
+3. Replace Merkle tree XOR placeholder with BLAKE3 FFI
+4. Implement Filesystem.Verify module
+5. Implement Filesystem.Repair with linear types (Quantity 1)
+
+**Blockers:**
+
+* Idris2 0.8.0+ compiler required
+* BLAKE3/SHA-256 FFI needed for production hashing
+
+=== Phase 2: ECHIDNA Integration (v0.2.0) - **Planned**
+
+Target: Bidirectional proof exchange with ECHIDNA neural prover
+
+**Components:**
+
+* [ ] FFI Implementation (Idris2 → Rust via libechidna.so)
+* [ ] Proof Obligation Export (Idris2 → ECHIDNA)
+* [ ] Synthesized Proof Import (ECHIDNA → Idris2)
+* [ ] Bidirectional Proof Exchange Protocol
+* [ ] Integration Tests (100+ proof scenarios)
+* [ ] Multi-prover Support (via idris2-echidna bindings)
+
+**Prerequisites:**
+
+* Phase 1 complete (all core components 100%)
+* libechidna.so built and accessible
+* idris2-echidna bindings available
+
+=== Phase 3: Neural Synthesis Support (v0.3.0) - **Planned**
+
+Target: Train ECHIDNA on Ochránce proof corpus for automated synthesis
+
+**Components:**
+
+* [ ] Proof Corpus Collection (200+ Idris2 examples)
+* [ ] Corpus Annotation (proof patterns, tactics)
+* [ ] Synthesis Pipeline Integration
+* [ ] Evaluation Benchmarks (precision/recall)
+* [ ] Automated Proof Search
+* [ ] Performance Optimization
+
+**Deliverables:**
+
+* Annotated proof corpus (200+ examples)
+* Trained synthesis model
+* Benchmark results
+
+=== Phase 4: Production Deployment (v1.0.0) - **Planned**
+
+Target: Production-ready filesystem verification for OSTree deployments
+
+**Components:**
+
+* [ ] OSTree Integration (pre/post-transaction hooks)
+* [ ] Performance Benchmarks (verification latency)
+* [ ] Security Audit (external review)
+* [ ] Production Documentation
+* [ ] Thesis Document
+* [ ] Case Studies (Fedora Kinoite, etc.)
+
+**Integration Points:**
+
+* OSTree transaction hooks (`/etc/ostree/hooks/`)
+* Systemd service units for continuous verification
+* Journal integration for audit logging
+
+== Feature Roadmap
+
+=== v0.1.0 - Core Framework
+* Complete A2ML parsing, validation, and serialization
+* Verified Merkle trees with BLAKE3 hashing
+* Filesystem verification and linear type repair
+* 50+ integration test scenarios
+
+=== v0.2.0 - ECHIDNA Integration
+* Bidirectional FFI with libechidna.so
+* Proof obligation export and import
+* 100+ proof test scenarios
+
+=== v0.3.0 - Neural Synthesis
+* 200+ proof corpus for training
+* Automated proof synthesis pipeline
+* Performance benchmarks
+
+=== v1.0.0 - Production Release
+* OSTree integration
+* Security audit complete
+* Thesis document
+* Production deployment guides
+
+== Long-Term Vision
+
+=== v2.0.0+ - Advanced Features
+
+* **Multi-filesystem Support**: Extend beyond reference implementation
+* **Distributed Verification**: Merkle proof sharing across nodes
+* **Proof Cache**: Store and reuse previously verified proofs
+* **Hardware Acceleration**: GPU-accelerated hashing (BLAKE3)
+* **Cross-language Bindings**: FFI for Rust, C, ReScript
+* **Real-time Verification**: Continuous filesystem monitoring
+
+=== Research Directions
+
+* **Proof Complexity Analysis**: Classify proofs by synthesis difficulty
+* **Tactic Discovery**: Learn new proof tactics from corpus
+* **Cross-domain Transfer**: Apply filesystem verification to other domains
+* **Formal Methods Integration**: Connection to Coq/Lean/Agda
+
+== Dependencies
+
+=== Required
+
+* **Idris2** 0.8.0+ (dependent types, totality checking)
+* **Zig** 0.11+ (FFI implementation)
+* **BLAKE3** (cryptographic hashing)
+
+=== Optional (Phase 2+)
+
+* **ECHIDNA** (neural proof synthesis)
+* **idris2-echidna** (multi-prover bindings)
+* **proven** (verified primitives library)
+
+== Contributing
+
+See link:CONTRIBUTING.md[CONTRIBUTING.md] for guidelines on:
+
+* Writing total Idris2 functions
+* Property-based testing
+* Proof corpus contribution
+* Integration test scenarios
+
+== License
+
+SPDX-License-Identifier: PMPL-1.0-or-later
+
+Copyright (C) 2026 Jonathan D.A. Jewell. All rights reserved.
