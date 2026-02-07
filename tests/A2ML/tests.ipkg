@@ -1,0 +1,17 @@
+-- SPDX-License-Identifier: PMPL-1.0-or-later
+package a2ml-tests
+version = 0.1.0
+authors = "Jonathan D.A. Jewell <jonathan.jewell@open.ac.uk>"
+brief = "Property-based tests for A2ML parser"
+license = "PMPL-1.0-or-later"
+langversion >= 0.8.0
+
+depends = ochrance
+
+sourcedir = "."
+
+modules = ParserTests
+
+main = ParserTests
+
+executable = a2ml-tests

@@ -1,0 +1,18 @@
+-- SPDX-License-Identifier: PMPL-1.0-or-later
+package integration-tests
+version = 0.1.0
+authors = "Jonathan D.A. Jewell <jonathan.jewell@open.ac.uk>"
+brief = "Integration tests for Ochránce verification workflow"
+license = "PMPL-1.0-or-later"
+langversion >= 0.8.0
+
+depends = ochrance
+        , ochrance-fs
+
+sourcedir = "."
+
+modules = IntegrationTests
+
+main = IntegrationTests
+
+executable = integration-tests
