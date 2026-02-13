@@ -44,6 +44,7 @@ allocBytes : List Bits8 -> IO (Ptr Bits8)
 allocBytes bytes = primIO $ \w =>
   -- TODO: Proper buffer allocation with malloc/free
   -- For Phase 2, using believe_me cast as placeholder
+-- PROOF_TODO: Replace believe_me with actual proof
   MkIORes (believe_me bytes) w
 
 ||| Read 32 bytes from pointer into Vect
@@ -57,6 +58,7 @@ readHash ptr = primIO $ \w =>
 callBlake3FFI : Ptr Bits8 -> Int -> IO (Vect 32 Bits8)
 callBlake3FFI inPtr len = primIO $ \w =>
   -- Allocate output buffer (32 bytes for hash)
+-- PROOF_TODO: Replace believe_me with actual proof
   let outPtr : Ptr Bits8 = believe_me ()
   in case prim__blake3 inPtr len outPtr w of
        MkIORes () w' =>
