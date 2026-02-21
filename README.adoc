@@ -64,3 +64,8 @@ idris2 --build ochrance.ipkg
 SPDX-License-Identifier: PMPL-1.0-or-later
 
 Copyright (C) 2026 Jonathan D.A. Jewell. All rights reserved.
+
+
+== Architecture
+
+See link:TOPOLOGY.md[TOPOLOGY.md] for a visual architecture map and completion dashboard.
