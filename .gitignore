@@ -78,5 +78,13 @@ htmlcov/
 *.tmp
 *.bak
 
+# Zig
+**/zig-out/
+**/.zig-cache/
+
+# Shared libraries
+*.so
+*.dylib
+
 # Crash recovery artifacts
 ai-cli-crash-capture/
