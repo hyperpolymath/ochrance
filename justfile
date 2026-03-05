@@ -96,3 +96,8 @@ stats:
     @find ochrance-core modules -name "*.idr" -exec cat {} \; | wc -l
     @echo "Functions marked total:"
     @grep -r 'total' ochrance-core modules | grep -v '%default' | wc -l
+
+# [AUTO-GENERATED] Multi-arch / RISC-V target
+build-riscv:
+	@echo "Building for RISC-V..."
+	cross build --target riscv64gc-unknown-linux-gnu
