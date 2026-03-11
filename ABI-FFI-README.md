@@ -1,385 +1,245 @@
-{{~ Aditionally delete this line and fill out the template below ~}}
+<!-- SPDX-License-Identifier: PMPL-1.0-or-later -->
 
-# {{PROJECT}} ABI/FFI Documentation
+# Ochrance ABI/FFI Documentation
 
 ## Overview
 
-This library follows the **Hyperpolymath RSR Standard** for ABI and FFI design:
+**Ochrance** is a neurosymbolic filesystem verification framework. Its
+cryptographic core follows the **Hyperpolymath RSR Standard** for ABI and FFI
+design:
 
-- **ABI (Application Binary Interface)** defined in **Idris2** with formal proofs
-- **FFI (Foreign Function Interface)** implemented in **Zig** for C compatibility
-- **Generated C headers** bridge Idris2 ABI to Zig FFI
-- **Any language** can call through standard C ABI
+- **ABI (Application Binary Interface)** defined in **Idris2** with formal
+  proofs — `src/abi/Ochrance/ABI/`
+- **FFI (Foreign Function Interface)** implemented in **Zig** for C
+  compatibility — `ffi/zig/src/main.zig`
+- **Idris2 FFI declarations** in the core library bridge into the Zig
+  shared object — `ochrance-core/Ochrance/FFI/Crypto.idr`
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────┐
-│  ABI Definitions (Idris2)                   │
-│  src/abi/                                   │
-│  - Types.idr      (Type definitions)        │
-│  - Layout.idr     (Memory layout proofs)    │
-│  - Foreign.idr    (FFI declarations)        │
-└─────────────────┬───────────────────────────┘
+┌─────────────────────────────────────────────────┐
+│  ABI Definitions (Idris2)                       │
+│  src/abi/Ochrance/ABI/                          │
+│  - Types.idr    PlatformContext, Result, Handle  │
+│  - Layout.idr   Memory layout proofs, CCompat   │
+│  - Foreign.idr  FFI declarations (blake3, sha)   │
+└─────────────────┬───────────────────────────────┘
                   │
-                  │ generates (at compile time)
+                  │ defines C-compatible signatures
                   ▼
-┌─────────────────────────────────────────────┐
-│  C Headers (auto-generated)                 │
-│  generated/abi/{{project}}.h                │
-└─────────────────┬───────────────────────────┘
+┌─────────────────────────────────────────────────┐
+│  Idris2 FFI Declarations                        │
+│  ochrance-core/Ochrance/FFI/Crypto.idr          │
+│  - %foreign "C:blake3_hash,libochrance"          │
+│  - %foreign "C:sha256_hash,libochrance"          │
+│  - %foreign "C:sha3_256_hash,libochrance"        │
+│  - %foreign "C:ed25519_verify,libochrance"       │
+│  - Buffer allocation, read, write helpers        │
+└─────────────────┬───────────────────────────────┘
                   │
-                  │ imported by
+                  │ links at runtime to
                   ▼
-┌─────────────────────────────────────────────┐
-│  FFI Implementation (Zig)                   │
-│  ffi/zig/src/main.zig                       │
-│  - Implements C-compatible functions        │
-│  - Zero-cost abstractions                   │
-│  - Memory-safe by default                   │
-└─────────────────┬───────────────────────────┘
+┌─────────────────────────────────────────────────┐
+│  FFI Implementation (Zig)                       │
+│  ffi/zig/src/main.zig                           │
+│  - blake3_hash    : BLAKE3 digest (32 bytes)    │
+│  - sha256_hash    : SHA-256 digest (32 bytes)   │
+│  - sha3_256_hash  : SHA3-256 digest (32 bytes)  │
+│  - ed25519_verify : Ed25519 sig check (0 or 1)  │
+│  Compiles to: libochrance.so / libochrance.a    │
+└─────────────────┬───────────────────────────────┘
                   │
-                  │ compiled to lib{{project}}.so/.a
+                  │ callable from any C-ABI language
                   ▼
-┌─────────────────────────────────────────────┐
-│  Any Language via C ABI                     │
-│  - Rust, ReScript, Julia, Python, etc.     │
-└─────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────┐
+│  Consumers                                      │
+│  - Ochrance Merkle tree verification            │
+│  - A2ML manifest attestation                    │
+│  - ECHIDNA neural proof synthesis (future)      │
+└─────────────────────────────────────────────────┘
 ```
+
+## ABI Definitions (Idris2)
+
+### Types.idr — Core ABI Types
+
+| Type | Description |
+|------|-------------|
+| `Platform` | Compile-time target: Linux, Windows, MacOS, BSD, WASM |
+| `Result` | Security check outcome: Ok, Error, InvalidParam, OutOfMemory, NullPointer |
+| `Handle` | Opaque non-null pointer with type-level `So (ptr /= 0)` proof |
+
+```idris
+-- Non-null handle guaranteed at the type level
+data Handle : Type where
+  MkHandle : (ptr : Bits64) -> {auto 0 nonNull : So (ptr /= 0)} -> Handle
+```
+
+### Layout.idr — Memory Layout Proofs
+
+Provides `Layout` records (size + alignment) and two key proof types:
+
+- **`PlatformIndependent`** — witnesses that a layout is portable across
+  architectures
+- **`CCompatible`** — proves a type matches C struct packing rules, safe for
+  FFI
+
+Also includes `generateCDecl` for emitting C `typedef` declarations from
+proven layouts.
+
+### Foreign.idr — FFI Declarations
+
+Declares `prim__blake3` and `prim__sha256` using `%foreign "C:...,libochrance"`
+with `Buffer`-based signatures matching the Zig exports.
+
+## Zig FFI Implementation
+
+All functions in `ffi/zig/src/main.zig` use Zig's `std.crypto` library:
+
+### Hash Functions
+
+All three hash functions share the same ABI contract:
+
+```c
+void hash_fn(const uint8_t* data, size_t len, uint8_t out[32]);
+```
+
+| Function | Algorithm | Output |
+|----------|-----------|--------|
+| `blake3_hash` | BLAKE3 | 32 bytes |
+| `sha256_hash` | SHA-256 | 32 bytes |
+| `sha3_256_hash` | SHA3-256 | 32 bytes |
+
+### Signature Verification
+
+```c
+int ed25519_verify(
+    const uint8_t signature[64],
+    const uint8_t public_key[32],
+    const uint8_t* message,
+    size_t msg_len
+);
+// Returns: 1 if valid, 0 if invalid
+```
+
+## How They Connect
+
+1. **Zig compiles** `ffi/zig/src/main.zig` into `libochrance.so` (shared
+   library with C-compatible exports)
+2. **Idris2 FFI declarations** in `Ochrance.FFI.Crypto` use
+   `%foreign "C:blake3_hash,libochrance"` to bind primitives
+3. **Buffer management** in `Crypto.idr` allocates `Data.Buffer` objects,
+   writes input bytes, calls the FFI primitive, reads output bytes
+4. **Public API** (`blake3`, `sha256`, `sha3_256`, `ed25519Verify`) wraps
+   everything in `HasIO io` for safe usage
+5. **Merkle tree** (`Ochrance.Filesystem.Merkle`) calls `hashPairBlake3`
+   which delegates to `blake3` for cryptographic tree hashing
+6. **ABI modules** (`src/abi/`) provide the formal foundation: type
+   definitions with dependent-type proofs, memory layout verification,
+   and C-header generation
 
 ## Directory Structure
 
 ```
-{{project}}/
-├── src/
-│   ├── abi/                    # ABI definitions (Idris2)
-│   │   ├── Types.idr           # Core type definitions with proofs
-│   │   ├── Layout.idr          # Memory layout verification
-│   │   └── Foreign.idr         # FFI function declarations
-│   └── lib/                    # Core library (any language)
+ochrance/
+├── src/abi/Ochrance/ABI/         # Idris2 ABI definitions
+│   ├── Types.idr                  #   Platform, Result, Handle
+│   ├── Layout.idr                 #   Memory layout proofs, CCompatible
+│   └── Foreign.idr                #   FFI primitive declarations
 │
-├── ffi/
-│   └── zig/                    # FFI implementation (Zig)
-│       ├── build.zig           # Build configuration
-│       ├── build.zig.zon       # Dependencies
-│       ├── src/
-│       │   └── main.zig        # C-compatible FFI implementation
-│       ├── test/
-│       │   └── integration_test.zig
-│       └── include/
-│           └── {{project}}.h   # C header (optional, can be generated)
+├── ochrance-core/Ochrance/FFI/   # Idris2 FFI wrappers
+│   ├── Crypto.idr                 #   blake3, sha256, sha3_256, ed25519Verify
+│   └── Echidna.idr                #   ECHIDNA neural prover (stub)
 │
-├── generated/                  # Auto-generated files
-│   └── abi/
-│       └── {{project}}.h       # Generated from Idris2 ABI
+├── ffi/zig/                       # Zig FFI implementation
+│   ├── build.zig                  #   Build configuration
+│   ├── build.zig.zon              #   Dependencies
+│   └── src/
+│       └── main.zig               #   blake3_hash, sha256_hash, sha3_256_hash,
+│                                  #   ed25519_verify (with tests)
 │
-└── bindings/                   # Language-specific wrappers (optional)
-    ├── rust/
-    ├── rescript/
-    └── julia/
-```
-
-## Why Idris2 for ABI?
-
-### 1. **Formal Verification**
-
-Idris2's dependent types allow proving properties about the ABI at compile-time:
-
-```idris
--- Prove struct size is correct
-public export
-exampleStructSize : HasSize ExampleStruct 16
-
--- Prove field alignment is correct
-public export
-fieldAligned : Divides 8 (offsetOf ExampleStruct.field)
-
--- Prove ABI is platform-compatible
-public export
-abiCompatible : Compatible (ABI 1) (ABI 2)
-```
-
-### 2. **Type Safety**
-
-Encode invariants that C/Zig cannot express:
-
-```idris
--- Non-null pointer guaranteed at type level
-data Handle : Type where
-  MkHandle : (ptr : Bits64) -> {auto 0 nonNull : So (ptr /= 0)} -> Handle
-
--- Array with length proof
-data Buffer : (n : Nat) -> Type where
-  MkBuffer : Vect n Byte -> Buffer n
-```
-
-### 3. **Platform Abstraction**
-
-Platform-specific types with compile-time selection:
-
-```idris
-CInt : Platform -> Type
-CInt Linux = Bits32
-CInt Windows = Bits32
-
-CSize : Platform -> Type
-CSize Linux = Bits64
-CSize Windows = Bits64
-```
-
-### 4. **Safe Evolution**
-
-Prove that new ABI versions are backward-compatible:
-
-```idris
--- Compiler enforces compatibility
-abiUpgrade : ABI 1 -> ABI 2
-abiUpgrade old = MkABI2 {
-  -- Must preserve all v1 fields
-  v1_compat = old,
-  -- Can add new fields
-  new_features = defaults
-}
-```
-
-## Why Zig for FFI?
-
-### 1. **C ABI Compatibility**
-
-Zig exports C-compatible functions naturally:
-
-```zig
-export fn library_function(param: i32) i32 {
-    return param * 2;
-}
-```
-
-### 2. **Memory Safety**
-
-Compile-time safety without runtime overhead:
-
-```zig
-// Null check enforced at compile time
-const handle = init() orelse return error.InitFailed;
-defer free(handle);
-```
-
-### 3. **Cross-Compilation**
-
-Built-in cross-compilation to any platform:
-
-```bash
-zig build -Dtarget=x86_64-linux
-zig build -Dtarget=aarch64-macos
-zig build -Dtarget=x86_64-windows
-```
-
-### 4. **Zero Dependencies**
-
-No runtime, no libc required (unless explicitly needed):
-
-```zig
-// Minimal binary size
-pub const lib = @import("std");
-// Only includes what you use
+├── generated/abi/                 # Auto-generated C headers (future)
+│   └── ochrance.h
+│
+└── ochrance-core/Ochrance/       # Core library consuming the FFI
+    ├── Filesystem/Merkle.idr      #   Uses hashPairBlake3 for tree hashing
+    ├── Filesystem/Verify.idr      #   Uses blake3 for block verification
+    └── A2ML/                      #   A2ML manifest parsing/validation
 ```
 
 ## Building
 
-### Build FFI Library
+### Build the Zig FFI Library
 
 ```bash
 cd ffi/zig
-zig build                         # Build debug
+zig build                         # Build debug (libochrance.so)
 zig build -Doptimize=ReleaseFast  # Build optimized
-zig build test                    # Run tests
+zig build test                    # Run Zig unit tests
 ```
 
-### Generate C Header from Idris2 ABI
+### Build the Idris2 Core
 
 ```bash
-cd src/abi
-idris2 --cg c-header Types.idr -o ../../generated/abi/{{project}}.h
+# Ensure libochrance.so is on LD_LIBRARY_PATH
+export LD_LIBRARY_PATH="$PWD/ffi/zig/zig-out/lib:$LD_LIBRARY_PATH"
+
+# Type-check and build
+idris2 --build ochrance.ipkg
+idris2 --build ochrance-fs.ipkg
 ```
 
 ### Cross-Compile
 
 ```bash
 cd ffi/zig
-
-# Linux x86_64
 zig build -Dtarget=x86_64-linux
-
-# macOS ARM64
+zig build -Dtarget=aarch64-linux
 zig build -Dtarget=aarch64-macos
-
-# Windows x86_64
-zig build -Dtarget=x86_64-windows
-```
-
-## Usage
-
-### From C
-
-```c
-#include "{{project}}.h"
-
-int main() {
-    void* handle = {{project}}_init();
-    if (!handle) return 1;
-
-    int result = {{project}}_process(handle, 42);
-    if (result != 0) {
-        const char* err = {{project}}_last_error();
-        fprintf(stderr, "Error: %s\n", err);
-    }
-
-    {{project}}_free(handle);
-    return 0;
-}
-```
-
-Compile with:
-```bash
-gcc -o example example.c -l{{project}} -L./zig-out/lib
-```
-
-### From Idris2
-
-```idris
-import {{PROJECT}}.ABI.Foreign
-
-main : IO ()
-main = do
-  Just handle <- init
-    | Nothing => putStrLn "Failed to initialize"
-
-  Right result <- process handle 42
-    | Left err => putStrLn $ "Error: " ++ errorDescription err
-
-  free handle
-  putStrLn "Success"
-```
-
-### From Rust
-
-```rust
-#[link(name = "{{project}}")]
-extern "C" {
-    fn {{project}}_init() -> *mut std::ffi::c_void;
-    fn {{project}}_free(handle: *mut std::ffi::c_void);
-    fn {{project}}_process(handle: *mut std::ffi::c_void, input: u32) -> i32;
-}
-
-fn main() {
-    unsafe {
-        let handle = {{project}}_init();
-        assert!(!handle.is_null());
-
-        let result = {{project}}_process(handle, 42);
-        assert_eq!(result, 0);
-
-        {{project}}_free(handle);
-    }
-}
-```
-
-### From Julia
-
-```julia
-const lib{{project}} = "lib{{project}}"
-
-function init()
-    handle = ccall((:{{project}}_init, lib{{project}}), Ptr{Cvoid}, ())
-    handle == C_NULL && error("Failed to initialize")
-    handle
-end
-
-function process(handle, input)
-    result = ccall((:{{project}}_process, lib{{project}}), Cint, (Ptr{Cvoid}, UInt32), handle, input)
-    result
-end
-
-function cleanup(handle)
-    ccall((:{{project}}_free, lib{{project}}), Cvoid, (Ptr{Cvoid},), handle)
-end
-
-# Usage
-handle = init()
-try
-    result = process(handle, 42)
-    println("Result: $result")
-finally
-    cleanup(handle)
-end
 ```
 
 ## Testing
 
-### Unit Tests (Zig)
+### Zig Unit Tests
+
+The Zig source includes inline tests for all four FFI functions:
 
 ```bash
 cd ffi/zig
 zig build test
 ```
 
-### Integration Tests
+Tests cover: empty string hashing (BLAKE3, SHA-256, SHA3-256), known-answer
+tests ("abc" for BLAKE3), valid Ed25519 signature verification, and invalid
+signature rejection.
+
+### Idris2 Integration Tests
 
 ```bash
-cd ffi/zig
-zig build test-integration
-```
-
-### ABI Verification (Idris2)
-
-```idris
--- Compile-time verification
-%runElab verifyABI
-
--- Runtime checks
-main : IO ()
-main = do
-  verifyLayoutsCorrect
-  verifyAlignmentsCorrect
-  putStrLn "ABI verification passed"
+idris2 --build tests/integration.ipkg
 ```
 
 ## Contributing
 
 When modifying the ABI/FFI:
 
-1. **Update ABI first** (`src/abi/*.idr`)
-   - Modify type definitions
-   - Update proofs
-   - Ensure backward compatibility
-
-2. **Generate C header**
-   ```bash
-   idris2 --cg c-header src/abi/Types.idr -o generated/abi/{{project}}.h
-   ```
-
-3. **Update FFI implementation** (`ffi/zig/src/main.zig`)
-   - Implement new functions
-   - Match ABI types exactly
-
-4. **Add tests**
-   - Unit tests in Zig
-   - Integration tests
-   - ABI verification tests
-
-5. **Update documentation**
-   - Function signatures
-   - Usage examples
-   - Migration guide (if breaking changes)
+1. **Update ABI types** (`src/abi/Ochrance/ABI/Types.idr`) — add or modify
+   type definitions with proofs
+2. **Update FFI declarations** (`ochrance-core/Ochrance/FFI/Crypto.idr`) —
+   add `%foreign` declarations and buffer management
+3. **Update Zig implementation** (`ffi/zig/src/main.zig`) — implement the
+   C-compatible function matching the declaration
+4. **Add tests** — Zig inline tests for the new function, Idris2 integration
+   tests for the wrapper
+5. **Verify totality** — all Idris2 modules must pass `%default total`
 
 ## License
 
-{{LICENSE}}
+PMPL-1.0-or-later
 
 ## See Also
 
 - [Idris2 Documentation](https://idris2.readthedocs.io)
 - [Zig Documentation](https://ziglang.org/documentation/master/)
 - [Rhodium Standard Repositories](https://github.com/hyperpolymath/rhodium-standard-repositories)
-- [FFI Migration Guide](../ffi-migration-guide.md)
-- [ABI Migration Guide](../abi-migration-guide.md)

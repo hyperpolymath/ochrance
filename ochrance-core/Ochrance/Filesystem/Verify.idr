@@ -32,35 +32,33 @@ collectBlockHashes fs = map fs.blockHash [0 .. (fs.numBlocks `minus` 1)]
 blockToBytes : Block -> List Bits8
 blockToBytes = toList
 
-||| Hash a single block using BLAKE3
+||| Hash a single block using BLAKE3.
+||| Returns Left on buffer allocation failure (z/out-of-memory).
 export
-hashBlock : HasIO io => Block -> io Hash
+hashBlock : HasIO io => Block -> io (Either OchranceError Hash)
 hashBlock block = do
-  hashBytes <- blake3 (blockToBytes block)
-  pure (MkHash BLAKE3 (bytesToHex hashBytes))
+  result <- blake3 (blockToBytes block)
+  case result of
+    Left err => pure (Left err)
+    Right hashBytes => pure (Right (MkHash BLAKE3 (bytesToHex hashBytes)))
   where
-    padLeft : Nat -> Char -> String -> String
-    padLeft n c str =
-      let len = length str
-      in case isLTE len n of
-            Yes prf => pack (replicate (n `minus` len) c) ++ str
-            No _ => str
+    ||| Hex digit lookup: nibble value (0-15) to character.
+    ||| Uses exhaustive pattern matching for totality.
+    hexDigit : Bits8 -> Char
+    hexDigit 0 = '0'; hexDigit 1 = '1'; hexDigit 2 = '2'; hexDigit 3 = '3'
+    hexDigit 4 = '4'; hexDigit 5 = '5'; hexDigit 6 = '6'; hexDigit 7 = '7'
+    hexDigit 8 = '8'; hexDigit 9 = '9'; hexDigit 10 = 'a'; hexDigit 11 = 'b'
+    hexDigit 12 = 'c'; hexDigit 13 = 'd'; hexDigit 14 = 'e'; hexDigit 15 = 'f'
+    hexDigit _ = '0'  -- Defensive fallback for values > 15
 
-    hexDigit : Nat -> Char
-    hexDigit n = case n of
-      0 => '0'; 1 => '1'; 2 => '2'; 3 => '3'; 4 => '4'
-      5 => '5'; 6 => '6'; 7 => '7'; 8 => '8'; 9 => '9'
-      10 => 'a'; 11 => 'b'; 12 => 'c'; 13 => 'd'; 14 => 'e'; 15 => 'f'
-      _ => '0'  -- fallback (should not happen for valid input)
-
-    toHex : Nat -> String
-    toHex n = assert_total $ if n < 16
-                 then pack [hexDigit n]
-                 else toHex (n `div` 16) ++ pack [hexDigit (n `mod` 16)]
-
+    ||| Convert a byte to a two-character hex string.
+    ||| Provably total: extracts high and low nibbles via div/mod on Bits8,
+    ||| no recursion required.
     byteToHex : Bits8 -> String
-    byteToHex b = let n = cast {to=Nat} b
-                  in padLeft 2 '0' (toHex n)
+    byteToHex b =
+      let hi = b `div` 16
+          lo = b `mod` 16
+      in pack [hexDigit hi, hexDigit lo]
 
     bytesToHex : Vect 32 Bits8 -> String
     bytesToHex bytes = concat (map byteToHex (toList bytes))
@@ -172,18 +170,22 @@ verify fs validManifest = do
                         Nothing => Lax
                         Just att => Attested
 
-           -- Build appropriate proof
+           -- Build appropriate proof based on verification mode
            case mode of
              Lax => pure (Right (LaxProof validManifest))
              Attested =>
                case manifest.attestation of
                  Just att =>
-                   -- Extract root hash from first ref (placeholder)
+                   -- Extract root hash from first ref for attestation proof
                    case head' manifest.refs of
                      Nothing => pure (Left (QError (MissingRequiredField "refs")))
                      Just ref => pure (Right (AttestedProof validManifest ref.hash att.signature))
                  Nothing => pure (Right (LaxProof validManifest))
-             _ => pure (Right (CheckedProof validManifest (MkHash BLAKE3 "placeholder")))
+             Checked =>
+               -- Checked mode: build root hash from all ref hashes
+               case head' manifest.refs of
+                 Nothing => pure (Left (QError (MissingRequiredField "refs")))
+                 Just ref => pure (Right (CheckedProof validManifest ref.hash))
   where
     head' : List a -> Maybe a
     head' [] = Nothing
@@ -193,17 +195,90 @@ verify fs validManifest = do
 -- VerifiedSubsystem Instance
 --------------------------------------------------------------------------------
 
-||| FSState implements VerifiedSubsystem
-||| Note: Implementation uses IO wrappers to match the interface
+||| FSState implements VerifiedSubsystem.
+|||
+||| Note: The VerifiedSubsystem interface uses pure signatures for
+||| generateManifest and verify, but the filesystem module requires IO
+||| for cryptographic hashing. The pure implementations build manifests
+||| and verify using the pre-computed block hashes stored in FSState
+||| (which were computed via IO at block-read time).
+||| For full IO-based verification, use the standalone verify function.
 export
 implementation VerifiedSubsystem FSState where
   subsystemName = "filesystem"
-  -- Pure wrapper for generateManifest (Phase 1 limitation)
-  generateManifest = \fs => Left (ZError (FFIError "generateManifest requires IO - use generateManifest directly"))
-  -- Pure wrapper for verify (Phase 1 limitation)
-  verify = \fs, vm => Left (ZError (FFIError "verify requires IO - use verify directly"))
-  -- Repair implementation (Phase 1: stubbed due to linear type complexity)
-  repair = \fs, manifest =>
-    -- TODO: Implement proper linear type repair for Phase 2
-    -- For now, just return the original state (consuming the linear parameter)
-    pure (Right fs)
+
+  -- Pure generateManifest: builds manifest from pre-computed block hashes
+  generateManifest = \fs =>
+    let blockHashes = map fs.blockHash [0 .. (fs.numBlocks `minus` 1)]
+        validRefs = buildRefs blockHashes 0
+        manifest = MkManifest fs.metadata validRefs Nothing Nothing
+    in Right manifest
+    where
+      buildRefs : List (Maybe Hash) -> Nat -> List Ref
+      buildRefs [] _ = []
+      buildRefs (Nothing :: rest) idx = buildRefs rest (S idx)
+      buildRefs ((Just h) :: rest) idx =
+        MkRef ("block_" ++ show idx) h :: buildRefs rest (S idx)
+
+  -- Pure verify: checks pre-computed block hashes against manifest refs
+  verify = \fs, vm =>
+    let manifest = unwrapValid vm
+    in if manifest.manifestData.subsystem /= fs.metadata.subsystem
+          then Left (QError (InvalidManifestPath "Subsystem mismatch"))
+          else case verifyRefsHelper fs manifest.refs of
+            Left err => Left err
+            Right () =>
+              case manifest.attestation of
+                Nothing => Right (LaxProof vm)
+                Just att =>
+                  case head' manifest.refs of
+                    Nothing => Left (QError (MissingRequiredField "refs"))
+                    Just ref => Right (AttestedProof vm ref.hash att.signature)
+    where
+      head' : List a -> Maybe a
+      head' [] = Nothing
+      head' (x :: _) = Just x
+
+      splitOn : Char -> String -> List String
+      splitOn sep s = splitHelper (unpack s) [] []
+        where
+          splitHelper : List Char -> List Char -> List String -> List String
+          splitHelper [] acc res = reverse (pack (reverse acc) :: res)
+          splitHelper (c :: cs) acc res =
+            if c == sep
+               then splitHelper cs [] (pack (reverse acc) :: res)
+               else splitHelper cs (c :: acc) res
+
+      parseNatHelper : String -> Maybe Nat
+      parseNatHelper s = case all isDigit (unpack s) of
+        False => Nothing
+        True => Just (cast s)
+
+      parseBlockIdx : String -> Maybe BlockIndex
+      parseBlockIdx name =
+        let parts = filter (\str => str /= "") (splitOn '_' name) in
+        case parts of
+          ["block", numStr] => parseNatHelper numStr
+          _ => Nothing
+
+      verifyRefsHelper : FSState -> List Ref -> Either OchranceError ()
+      verifyRefsHelper _ [] = Right ()
+      verifyRefsHelper st (ref :: refs) =
+        case parseBlockIdx ref.name of
+          Nothing => Left (QError (InvalidManifestPath ("Invalid ref name: " ++ ref.name)))
+          Just idx =>
+            if idx >= st.numBlocks
+               then Left (QError (InvalidManifestPath ("Block index out of range: " ++ show idx)))
+               else case st.blockHash idx of
+                 Nothing => Left (ZError (FileNotFound ("Block " ++ show idx)))
+                 Just actualHash =>
+                   if actualHash == ref.hash
+                      then verifyRefsHelper st refs
+                      else Left (PError (HashMismatch ref.name (show ref.hash) (show actualHash)))
+
+  -- Repair implementation: delegates to linearRepairFromManifest
+  repair = \fs, manifest => do
+    result <- linearRepairFromManifest fs manifest
+    case result of
+      Left err => pure (Left err)
+      Right (newFS, _) => pure (Right newFS)

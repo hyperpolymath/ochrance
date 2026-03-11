@@ -97,6 +97,7 @@ policyManifest = """
 -- Lexer Tests
 --------------------------------------------------------------------------------
 
+covering
 lexerTests : IO ()
 lexerTests = do
   putStrLn "\n=== Lexer Tests ==="
@@ -130,6 +131,7 @@ lexerTests = do
 -- Parser Tests
 --------------------------------------------------------------------------------
 
+covering
 parserTests : IO ()
 parserTests = do
   putStrLn "\n=== Parser Tests ==="
@@ -185,6 +187,7 @@ parserTests = do
 -- Roundtrip Tests
 --------------------------------------------------------------------------------
 
+covering
 roundtripTests : IO ()
 roundtripTests = do
   putStrLn "\n=== Roundtrip Tests ==="
@@ -210,6 +213,7 @@ roundtripTests = do
 -- Error Handling Tests
 --------------------------------------------------------------------------------
 
+covering
 errorHandlingTests : IO ()
 errorHandlingTests = do
   putStrLn "\n=== Error Handling Tests ==="
@@ -242,6 +246,7 @@ errorHandlingTests = do
 -- Main Test Runner
 --------------------------------------------------------------------------------
 
+covering
 export
 main : IO ()
 main = do

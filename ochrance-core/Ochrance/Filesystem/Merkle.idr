@@ -11,6 +11,7 @@ module Ochrance.Filesystem.Merkle
 import Data.Vect
 import Ochrance.A2ML.Types
 import Ochrance.FFI.Crypto
+import Ochrance.Framework.Error
 
 %default total
 
@@ -53,13 +54,19 @@ rootHashBytes (Node l r) = hashPairStub (rootHashBytes l) (rootHashBytes r)
 
 ||| Extract the root hash using BLAKE3 (IO version).
 ||| This is the cryptographically secure version that should be used in production.
+||| Returns Left on buffer allocation failure (z/out-of-memory).
 export
-rootHashBytesIO : HasIO io => MerkleTree n -> io HashBytes
-rootHashBytesIO (Leaf h) = pure h
+rootHashBytesIO : HasIO io => MerkleTree n -> io (Either OchranceError HashBytes)
+rootHashBytesIO (Leaf h) = pure (Right h)
 rootHashBytesIO (Node l r) = do
-  lHash <- rootHashBytesIO l
-  rHash <- rootHashBytesIO r
-  hashPairBlake3 lHash rHash
+  lResult <- rootHashBytesIO l
+  case lResult of
+    Left err => pure (Left err)
+    Right lHash => do
+      rResult <- rootHashBytesIO r
+      case rResult of
+        Left err => pure (Left err)
+        Right rHash => hashPairBlake3 lHash rHash
 
 --------------------------------------------------------------------------------
 -- Merkle Proof (inclusion proof)
@@ -80,13 +87,17 @@ MerkleProof = List (Direction, HashBytes)
 --------------------------------------------------------------------------------
 
 ||| Proof that power 2 (S k) = power 2 k + power 2 k
-||| This is needed for splitting vectors when building Merkle trees
+||| This is needed for splitting vectors when building Merkle trees.
 |||
-||| Full proof would require:
-||| power 2 (S k) = 2 * power 2 k     (by definition of power)
-||| 2 * power 2 k = power 2 k + power 2 k  (by distributivity)
-||| For Phase 2, we postulate this as the arithmetic is standard
+||| By definition: power 2 (S k) = 2 * power 2 k = power 2 k + power 2 k
+||| We prove this by showing that n + 0 = n (plusZeroRightNeutral) and then
+||| using the fact that power 2 (S k) reduces to (power 2 k) + (power 2 k + 0).
 powerTwoSucc : (k : Nat) -> power 2 (S k) = power 2 k + power 2 k
+powerTwoSucc k =
+  -- power 2 (S k) normalises to: power 2 k + (power 2 k + 0)
+  -- We need:                      power 2 k + power 2 k
+  -- So we rewrite (power 2 k + 0) to (power 2 k) using plusZeroRightNeutral.
+  rewrite plusZeroRightNeutral (power 2 k) in Refl
 
 --------------------------------------------------------------------------------
 -- Build / Verify
@@ -118,13 +129,96 @@ verifyProof root leaf ((GoRight, sibling) :: rest) =
 
 ||| Verify a Merkle inclusion proof using BLAKE3 (IO version).
 ||| This is the cryptographically secure version for production use.
+||| Returns Left on buffer allocation failure (z/out-of-memory).
 export
 verifyProofIO : HasIO io => (root : HashBytes) -> (leaf : HashBytes)
-             -> MerkleProof -> io Bool
-verifyProofIO root leaf [] = pure (root == leaf)
+             -> MerkleProof -> io (Either OchranceError Bool)
+verifyProofIO root leaf [] = pure (Right (root == leaf))
 verifyProofIO root leaf ((GoLeft, sibling) :: rest) = do
-  parent <- hashPairBlake3 leaf sibling
-  verifyProofIO root parent rest
+  parentResult <- hashPairBlake3 leaf sibling
+  case parentResult of
+    Left err => pure (Left err)
+    Right parent => verifyProofIO root parent rest
 verifyProofIO root leaf ((GoRight, sibling) :: rest) = do
-  parent <- hashPairBlake3 sibling leaf
-  verifyProofIO root parent rest
+  parentResult <- hashPairBlake3 sibling leaf
+  case parentResult of
+    Left err => pure (Left err)
+    Right parent => verifyProofIO root parent rest
+
+--------------------------------------------------------------------------------
+-- IO-based Merkle Operations (BLAKE3)
+--------------------------------------------------------------------------------
+
+||| Hash raw data bytes into a leaf hash using BLAKE3 via FFI.
+||| This is the entry point for creating Merkle leaf hashes from actual data.
+||| Returns Left on buffer allocation failure (z/out-of-memory).
+export
+hashLeafIO : HasIO io => List Bits8 -> io (Either OchranceError HashBytes)
+hashLeafIO bytes = blake3 bytes
+
+||| Generate a Merkle inclusion proof from a tree (pure XOR version).
+||| Given a leaf index (0-based, left-to-right), extracts the path from
+||| leaf to root with sibling hashes at each level.
+|||
+||| Returns Nothing if the index is out of range.
+export
+generateProof : {n : Nat} -> MerkleTree n -> (leafIdx : Nat) -> Maybe MerkleProof
+generateProof {n = Z} (Leaf _) Z = Just []
+generateProof {n = Z} (Leaf _) (S _) = Nothing
+generateProof {n = S k} (Node l r) idx =
+  let halfSize = power 2 k in
+  if idx < halfSize
+     then do  -- Leaf is in the left subtree
+       subProof <- generateProof l idx
+       let siblingHash = rootHashBytes r
+       Just (subProof ++ [(GoLeft, siblingHash)])
+     else do  -- Leaf is in the right subtree
+       subProof <- generateProof r (idx `minus` halfSize)
+       let siblingHash = rootHashBytes l
+       Just (subProof ++ [(GoRight, siblingHash)])
+
+||| Generate a Merkle inclusion proof using BLAKE3 for sibling hashes (IO version).
+||| This produces a cryptographically secure proof path.
+||| Returns Left on FFI/allocation failure, Right Nothing if index is out of range.
+export
+generateProofIO : HasIO io => {n : Nat} -> MerkleTree n -> (leafIdx : Nat)
+               -> io (Either OchranceError (Maybe MerkleProof))
+generateProofIO {n = Z} (Leaf _) Z = pure (Right (Just []))
+generateProofIO {n = Z} (Leaf _) (S _) = pure (Right Nothing)
+generateProofIO {n = S k} (Node l r) idx =
+  let halfSize = power 2 k in
+  if idx < halfSize
+     then do  -- Leaf is in the left subtree
+       subResult <- generateProofIO l idx
+       case subResult of
+         Left err => pure (Left err)
+         Right Nothing => pure (Right Nothing)
+         Right (Just subProof) => do
+           siblingResult <- rootHashBytesIO r
+           case siblingResult of
+             Left err => pure (Left err)
+             Right siblingHash =>
+               pure (Right (Just (subProof ++ [(GoLeft, siblingHash)])))
+     else do  -- Leaf is in the right subtree
+       subResult <- generateProofIO r (idx `minus` halfSize)
+       case subResult of
+         Left err => pure (Left err)
+         Right Nothing => pure (Right Nothing)
+         Right (Just subProof) => do
+           siblingResult <- rootHashBytesIO l
+           case siblingResult of
+             Left err => pure (Left err)
+             Right siblingHash =>
+               pure (Right (Just (subProof ++ [(GoRight, siblingHash)])))
+
+||| Get a specific leaf hash from a Merkle tree by index (pure version).
+||| Returns Nothing if index is out of range.
+export
+getLeafHash : {n : Nat} -> MerkleTree n -> (leafIdx : Nat) -> Maybe HashBytes
+getLeafHash {n = Z} (Leaf h) Z = Just h
+getLeafHash {n = Z} (Leaf _) (S _) = Nothing
+getLeafHash {n = S k} (Node l r) idx =
+  let halfSize = power 2 k in
+  if idx < halfSize
+     then getLeafHash l idx
+     else getLeafHash r (idx `minus` halfSize)

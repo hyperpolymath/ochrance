@@ -5,6 +5,18 @@
 // This library provides memory-safe, formally-verified-ABI hash functions
 // callable from Idris2 via C FFI. All functions use platform-independent
 // byte representations.
+//
+// Minimum Zig version: 0.11.0
+//
+// Cryptographic algorithm versions (sourced from Zig stdlib):
+//   BLAKE3  - spec version 1.5 (https://github.com/BLAKE3-team/BLAKE3-specs)
+//   SHA-256 - FIPS 180-4
+//   SHA3-256 - FIPS 202
+//   Ed25519 - RFC 8032
+//
+// BLAKE3 note: This uses Zig's std.crypto.hash.Blake3 (pure Zig implementation
+// tracking the upstream BLAKE3 spec). The implementation is updated with each
+// Zig release. When upgrading Zig, verify BLAKE3 test vectors still pass.
 
 const std = @import("std");
 const crypto = std.crypto;

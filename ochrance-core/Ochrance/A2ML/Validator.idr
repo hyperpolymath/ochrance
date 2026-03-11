@@ -98,12 +98,16 @@ serializeForSigning m =
       refsBytes = concatMap refToBytes m.refs
   in versionBytes ++ subsystemBytes ++ refsBytes
 
-||| Verify Ed25519 signature
+||| Verify Ed25519 signature.
+||| Returns False on hex parsing failure or buffer allocation failure.
 verifySignatureIO : HasIO io => String -> String -> Vect 32 Bits8 -> io Bool
 verifySignatureIO sigHex pubkeyHex hash = do
   -- Verify signature using Ed25519 FFI
   result <- ed25519VerifyHex sigHex pubkeyHex (toList hash)
-  pure (fromMaybe False result)  -- Return False if parsing failed
+  case result of
+    Left _          => pure False  -- Buffer allocation failure => reject
+    Right Nothing   => pure False  -- Hex parsing failure => reject
+    Right (Just ok) => pure ok
 
 ||| Validate a complete manifest with signature verification (IO version).
 ||| This performs full validation including cryptographic signature checks.
@@ -120,14 +124,17 @@ validateManifestIO m = do
         Just att => do
           -- Compute manifest hash for signature verification
           let manifestBytes = serializeForSigning m
-          manifestHash <- blake3 manifestBytes
+          hashResult <- blake3 manifestBytes
 
-          -- Verify signature (Ed25519 via FFI)
-          signatureValid <- verifySignatureIO att.signature att.pubkey manifestHash
+          case hashResult of
+            Left _ => pure (Left SignatureVerificationFailed)
+            Right manifestHash => do
+              -- Verify signature (Ed25519 via FFI)
+              signatureValid <- verifySignatureIO att.signature att.pubkey manifestHash
 
-          if signatureValid
-             then pure (Right (MkValidManifest m))
-             else pure (Left SignatureVerificationFailed)
+              if signatureValid
+                 then pure (Right (MkValidManifest m))
+                 else pure (Left SignatureVerificationFailed)
 
 --------------------------------------------------------------------------------
 -- Policy Validation

@@ -23,6 +23,6 @@ modules = Ochrance.A2ML.Types
         , Ochrance.Filesystem.Merkle
         , Ochrance.Filesystem.Verify
         , Ochrance.Filesystem.Repair
-        -- Ochrance.FFI.Echidna (Phase 2 - excluded from Phase 1 build)
+        , Ochrance.FFI.Echidna
 
 opts = "--total"

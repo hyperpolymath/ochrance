@@ -5,6 +5,11 @@
 ||| Uses Idris2 linear types (Quantity 1) to ensure that repair
 ||| operations consume the old filesystem state, preventing
 ||| use-after-repair bugs at compile time.
+|||
+||| Repair operations follow the q/p/z error taxonomy:
+|||   q - Invalid block index, mismatched block counts (user/input errors)
+|||   p - Hash mismatch after repair (proof/verification failures)
+|||   z - IO failures during repair (system/environment errors)
 
 module Ochrance.Filesystem.Repair
 
@@ -254,3 +259,125 @@ repairBlocks oldState ((idx, hash) :: rest) =
        case result of
          Left err => pure (Left err)
          Right newState => repairBlocks newState rest
+
+--------------------------------------------------------------------------------
+-- High-level Repair Operations
+--------------------------------------------------------------------------------
+
+||| Repair filesystem state from a validated manifest (linear version).
+||| Extracts refs from the manifest and repairs all mismatched blocks.
+||| Consumes the old state and produces a new state matching the manifest.
+|||
+||| @ oldState The filesystem state to repair (consumed linearly)
+||| @ manifest The validated manifest specifying correct hashes
+export
+linearRepairFromManifest : HasIO io
+                        => (1 oldState : FSState)
+                        -> (manifest : ValidManifest)
+                        -> io (Either OchranceError (FSState, Nat))
+linearRepairFromManifest oldState manifest = do
+  let MkFSState numBlocks blockHashFunc metadata = oldState
+  let unwrapped = unwrapValid manifest
+  -- Collect (blockIndex, expectedHash) pairs from manifest refs
+  let repairs = collectRepairs unwrapped.refs blockHashFunc
+  let oldState' = MkFSState numBlocks blockHashFunc metadata
+  repairWithCount oldState' repairs 0
+  where
+    -- Parse helpers
+    parseNat : String -> Maybe Nat
+    parseNat s = case all isDigit (unpack s) of
+      False => Nothing
+      True => Just (cast s)
+
+    splitOnUnderscore : String -> List String
+    splitOnUnderscore s = splitHelper (unpack s) [] []
+      where
+        splitHelper : List Char -> List Char -> List String -> List String
+        splitHelper [] acc res = reverse (pack (reverse acc) :: res)
+        splitHelper ('_' :: cs) acc res = splitHelper cs [] (pack (reverse acc) :: res)
+        splitHelper (c :: cs) acc res = splitHelper cs (c :: acc) res
+
+    parseBlockIndex : String -> Maybe BlockIndex
+    parseBlockIndex name =
+      let parts = filter (\str => str /= "") (splitOnUnderscore name) in
+      case parts of
+        ["block", numStr] => parseNat numStr
+        _ => Nothing
+
+    -- Identify which blocks need repair by comparing current hashes to refs
+    collectRepairs : List Ref -> (BlockIndex -> Maybe Hash) -> List (BlockIndex, Hash)
+    collectRepairs [] _ = []
+    collectRepairs (ref :: refs) hashFn =
+      case parseBlockIndex ref.name of
+        Nothing => collectRepairs refs hashFn
+        Just idx =>
+          case hashFn idx of
+            Just actualHash =>
+              if actualHash == ref.hash
+                 then collectRepairs refs hashFn  -- Already correct
+                 else (idx, ref.hash) :: collectRepairs refs hashFn
+            Nothing => (idx, ref.hash) :: collectRepairs refs hashFn  -- Missing block
+
+    -- Repair loop with count tracking
+    repairWithCount : (1 fs : FSState) -> List (BlockIndex, Hash) -> Nat
+                   -> io (Either OchranceError (FSState, Nat))
+    repairWithCount fs [] count =
+      let MkFSState nb bhf md = fs
+          result = MkFSState nb bhf md
+      in pure (Right (result, count))
+    repairWithCount fs ((idx, hash) :: rest) count =
+      let MkFSState nb bhf md = fs
+          fs' = MkFSState nb bhf md
+      in do result <- repairBlock fs' idx hash
+            case result of
+              Left err => pure (Left err)
+              Right newFS => repairWithCount newFS rest (count + 1)
+
+||| Verify a repaired filesystem matches the manifest.
+||| This is a post-repair validation step that ensures repair was complete.
+|||
+||| @ repairedState The filesystem after repair
+||| @ manifest The manifest to verify against
+export
+verifyRepairComplete : HasIO io
+                    => (repairedState : FSState)
+                    -> (manifest : ValidManifest)
+                    -> io (Either OchranceError ())
+verifyRepairComplete fs manifest = do
+  let unwrapped = unwrapValid manifest
+  verifyRefs fs unwrapped.refs
+  where
+    parseNat : String -> Maybe Nat
+    parseNat s = case all isDigit (unpack s) of
+      False => Nothing
+      True => Just (cast s)
+
+    splitOnUnderscore : String -> List String
+    splitOnUnderscore s = splitHelper (unpack s) [] []
+      where
+        splitHelper : List Char -> List Char -> List String -> List String
+        splitHelper [] acc res = reverse (pack (reverse acc) :: res)
+        splitHelper ('_' :: cs) acc res = splitHelper cs [] (pack (reverse acc) :: res)
+        splitHelper (c :: cs) acc res = splitHelper cs (c :: acc) res
+
+    parseBlockIndex : String -> Maybe BlockIndex
+    parseBlockIndex name =
+      let parts = filter (\str => str /= "") (splitOnUnderscore name) in
+      case parts of
+        ["block", numStr] => parseNat numStr
+        _ => Nothing
+
+    verifyRefs : FSState -> List Ref -> io (Either OchranceError ())
+    verifyRefs _ [] = pure (Right ())
+    verifyRefs st (ref :: refs) =
+      case parseBlockIndex ref.name of
+        Nothing => pure (Left (QError (InvalidManifestPath ref.name)))
+        Just idx =>
+          if idx >= st.numBlocks
+             then pure (Left (QError (InvalidManifestPath ("Block index out of range: " ++ show idx))))
+             else case st.blockHash idx of
+               Nothing => pure (Left (ZError (FileNotFound ("Block " ++ show idx))))
+               Just actualHash =>
+                 if actualHash == ref.hash
+                    then verifyRefs st refs
+                    else pure (Left (PError (HashMismatch ref.name (show ref.hash) (show actualHash))))

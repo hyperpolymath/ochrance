@@ -13,7 +13,6 @@ import Ochrance.A2ML.Lexer
 import Ochrance.A2ML.Parser
 import Ochrance.A2ML.Validator
 import Ochrance.A2ML.Serializer
-import Ochrance.Framework.Interface
 import Ochrance.Framework.Proof
 import Ochrance.Framework.Error
 import Ochrance.Filesystem.Types
@@ -80,10 +79,10 @@ test_VerifyValidManifest = do
       case validateManifest manifest of
         Left err => pure (Fail ("Validate failed: " ++ show err))
         Right validManifest => do
-          verifyResult <- verify fs validManifest
+          verifyResult <- Ochrance.Filesystem.Verify.verify fs validManifest
           case verifyResult of
             Left err => pure (Fail ("Verify failed: " ++ show err))
-            Right proof => pure Pass
+            Right _ => pure Pass
 
 --------------------------------------------------------------------------------
 -- Scenario 3: Hash Mismatch Detection
@@ -106,7 +105,7 @@ test_DetectHashMismatch = do
   case validateManifest manifest of
     Left err => pure (Fail ("Validate failed: " ++ show err))
     Right validManifest => do
-      verifyResult <- verify fs validManifest
+      verifyResult <- Ochrance.Filesystem.Verify.verify fs validManifest
       case verifyResult of
         Left (PError (HashMismatch _ _ _)) => pure Pass  -- Expected failure
         Left err => pure (Fail ("Wrong error type: " ++ show err))
@@ -189,8 +188,9 @@ test_LinearVerifyAndRepair = do
       result <- linearVerifyAndRepair fs validManifest
       case result of
         Left err => pure (Fail ("Repair failed: " ++ show err))
-        Right (newFS, proof) =>
-          case proof of
+        Right pair =>
+          let (newFS, repairProof) = pair in
+          case repairProof of
             RepairSucceeded count _ =>
               if count == 2
                  then pure Pass
@@ -219,6 +219,7 @@ test_PolicyRequireSig = do
 -- Scenario 8: Roundtrip with Serialization
 --------------------------------------------------------------------------------
 
+covering
 test_RoundtripSerialization : IO TestResult
 test_RoundtripSerialization = do
   let fs = createTestFS 2
@@ -277,6 +278,7 @@ test_InvalidBlockIndex = do
 -- Main Test Suite (50+ scenarios)
 --------------------------------------------------------------------------------
 
+covering
 export
 main : IO ()
 main = do
