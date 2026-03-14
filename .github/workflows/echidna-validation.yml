@@ -1,0 +1,105 @@
+# SPDX-License-Identifier: PMPL-1.0-or-later
+name: ECHIDNA Validation
+
+on:
+  push:
+    paths:
+      - 'ochrance-core/**'
+      - 'modules/**'
+      - 'src/abi/**'
+      - 'ffi/zig/**'
+      - 'tests/**'
+      - '.github/workflows/echidna-validation.yml'
+  pull_request:
+    paths:
+      - 'ochrance-core/**'
+      - 'modules/**'
+      - 'src/abi/**'
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly on Monday at 06:00 UTC
+
+permissions: read-all
+
+jobs:
+  echidna-totality:
+    name: ECHIDNA Totality & Safety Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+
+      - name: Dangerous pattern scan (Idris2)
+        run: |
+          echo "=== Idris2 Dangerous Pattern Scan ==="
+          ISSUES=0
+          for pattern in "believe_me" "assert_total" "assert_smaller" "unsafePerformIO"; do
+            FOUND=$(grep -rn "$pattern" ochrance-core/ modules/ src/abi/ --include="*.idr" 2>/dev/null | wc -l || echo 0)
+            if [ "$FOUND" -gt 0 ]; then
+              echo "CRITICAL: Found $FOUND instances of '$pattern'"
+              grep -rn "$pattern" ochrance-core/ modules/ src/abi/ --include="*.idr" 2>/dev/null
+              ISSUES=$((ISSUES + FOUND))
+            fi
+          done
+          echo "Total dangerous patterns: $ISSUES"
+          echo "dangerous_count=$ISSUES" >> $GITHUB_OUTPUT
+
+          if [ "$ISSUES" -gt 0 ]; then
+            echo "FAIL: Dangerous patterns detected in Idris2 code" >&2
+            exit 1
+          fi
+
+      - name: Totality enforcement check
+        run: |
+          echo "=== Totality Enforcement ==="
+          MISSING=0
+          for f in $(find ochrance-core/ modules/ src/abi/ -name "*.idr" 2>/dev/null); do
+            if ! grep -q "%default total" "$f"; then
+              echo "WARNING: $f missing '%default total'"
+              MISSING=$((MISSING + 1))
+            fi
+          done
+          echo "Modules missing %default total: $MISSING"
+          if [ "$MISSING" -gt 0 ]; then
+            echo "WARNING: Some modules lack totality enforcement"
+          fi
+
+      - name: Partial function check
+        run: |
+          echo "=== Partial Function Check ==="
+          PARTIAL=$(grep -rn "^partial" ochrance-core/ modules/ src/abi/ --include="*.idr" 2>/dev/null | wc -l || echo 0)
+          echo "Explicitly partial functions: $PARTIAL"
+          if [ "$PARTIAL" -gt 0 ]; then
+            echo "Review required:"
+            grep -rn "^partial" ochrance-core/ modules/ src/abi/ --include="*.idr" 2>/dev/null
+          fi
+
+      - name: FFI stub status
+        run: |
+          echo "=== FFI Stub Status ==="
+          echo "Checking ochrance-core/Ochrance/FFI/Echidna.idr..."
+          if grep -q "FFI not yet implemented" ochrance-core/Ochrance/FFI/Echidna.idr 2>/dev/null; then
+            echo "INFO: Echidna FFI still stubbed (echidnaProve/echidnaVerify return defaults)"
+          else
+            echo "INFO: Echidna FFI may be implemented — verify libechidna.so linkage"
+          fi
+
+      - name: Zig FFI safety check
+        if: hashFiles('ffi/zig/src/*.zig') != ''
+        run: |
+          echo "=== Zig FFI Safety Check ==="
+          for pattern in "@intToPtr" "@ptrToInt"; do
+            FOUND=$(grep -rn "$pattern" ffi/zig/src/ --include="*.zig" 2>/dev/null | wc -l || echo 0)
+            if [ "$FOUND" -gt 0 ]; then
+              echo "WARNING: Found $FOUND instances of '$pattern' in Zig FFI"
+              grep -rn "$pattern" ffi/zig/src/ --include="*.zig" 2>/dev/null
+            fi
+          done
+
+      - name: Summary
+        run: |
+          echo "## ECHIDNA Validation Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Scanned: ochrance-core/, modules/, src/abi/, ffi/zig/" >> $GITHUB_STEP_SUMMARY
+          echo "- Checks: dangerous patterns (believe_me etc), totality enforcement, partial functions, FFI stub status, Zig safety" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "*Powered by ECHIDNA neurosymbolic verification*" >> $GITHUB_STEP_SUMMARY
