@@ -1,7 +1,7 @@
 -- SPDX-License-Identifier: PMPL-1.0-or-later
 package ochrance
 version = 0.1.0
-authors = "Jonathan D.A. Jewell <jonathan.jewell@open.ac.uk>"
+authors = "Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>"
 brief = "Neurosymbolic Filesystem Verification with Dependent Types"
 readme = "README.adoc"
 license = "PMPL-1.0-or-later"
