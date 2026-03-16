@@ -1,5 +1,5 @@
 = Ochránce
-Jonathan D.A. Jewell <jonathan.jewell@open.ac.uk>
+Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
 v0.1.0, 2026-02-06
 :toc:
 :icons: font
