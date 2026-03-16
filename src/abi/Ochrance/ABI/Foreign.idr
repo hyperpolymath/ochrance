@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: PMPL-1.0-or-later
 ||| Ochrance.ABI.Foreign — High-Assurance Hashing Interface.
 |||
 ||| This module defines the formal bridge to the native Zig-implemented 
