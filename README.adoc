@@ -59,6 +59,22 @@ idris2 --build ochrance.ipkg
 |Checked + verify cryptographic attestation signature
 |===
 
+== Related Repositories
+
+=== ochrance-framework (Parent Framework)
+
+This repo is the **reference implementation** of the Filesystem module defined in the
+link:https://github.com/hyperpolymath/ochrance-framework[ochrance-framework] repository.
+
+The framework defines the broader `VerifiedSubsystem` interface and four planned subsystem
+modules (Filesystem, Memory, Network, Crypto). This repo (`ochrance`) provides the concrete,
+working implementation of the Filesystem module using Idris2 dependent types and Zig FFI.
+
+The two repos are **complementary**, not duplicates:
+
+* **ochrance** (this repo) — concrete filesystem verification implementation (~80% complete)
+* **ochrance-framework** — abstract modular framework for all four subsystems (~10% complete)
+
 == License
 
 SPDX-License-Identifier: PMPL-1.0-or-later
