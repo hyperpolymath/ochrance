@@ -194,7 +194,7 @@ linearVerifyAndRepair oldState manifest = do
 
     -- Helper: repair loop
     -- Note: Idris2's Pair type doesn't perfectly preserve linearity
-    -- This is a known limitation - workaround by using unsafePerformIO or restructuring
+    -- This is a known limitation - workaround by restructuring to consume linearly
     repairLoop : (1 fs : FSState) -> List Ref -> Nat -> io (Either OchranceError (FSState, Nat))
     repairLoop fs [] count =
       -- Use pattern match to consume fs and create new state
