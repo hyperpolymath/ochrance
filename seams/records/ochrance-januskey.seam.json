@@ -1,0 +1,102 @@
+{
+  "id": "ochrance-januskey",
+  "title": "Ochrance filesystem verification ↔ JanusKey reversible operations",
+  "status": "draft",
+  "owners": [
+    {
+      "name": "Jonathan D.A. Jewell",
+      "contact": "j.d.a.jewell@open.ac.uk",
+      "role": "maintainer"
+    }
+  ],
+  "side_a": "ochrance (filesystem verification, Idris2)",
+  "side_b": "januskey (reversible file operations, Rust)",
+  "boundary_type": "library",
+  "data_flows": [
+    {
+      "name": "a2ml_manifest",
+      "direction": "b_to_a",
+      "description": "JanusKey's reversible-core emits A2ML manifests that ochrance can verify."
+    },
+    {
+      "name": "verification_result",
+      "direction": "a_to_b",
+      "description": "Ochrance verification results inform JanusKey whether filesystem state is intact."
+    }
+  ],
+  "contract_artifacts": [
+    {
+      "path": "seams/records/ochrance-januskey.seam.json",
+      "kind": "seam-record",
+      "version": "0.1.0"
+    }
+  ],
+  "compat_policy": {
+    "strategy": "semver-ish",
+    "rules": [
+      "A2ML manifest format changes require coordinated release",
+      "VerifiedSubsystem interface (Idris2) and ReversibleExecutor trait (Rust) must stay aligned"
+    ],
+    "deprecation_window_days": 90
+  },
+  "semantic_invariants": [
+    "Ochrance VerifiedSubsystem and JanusKey ReversibleExecutor represent the same abstraction in different type systems",
+    "A2ML manifests emitted by reversible-core must parse cleanly in ochrance's A2ML parser"
+  ],
+  "security_invariants": [
+    "Hash algorithms must match: both sides use SHA-256 or BLAKE3",
+    "No plaintext secrets in A2ML manifests"
+  ],
+  "privacy_invariants": [
+    "File content never crosses this seam — only hashes and metadata"
+  ],
+  "test_vectors": [],
+  "checks": {
+    "conformance": {
+      "status": "todo",
+      "notes": "Create golden A2ML manifest vectors that both sides parse identically"
+    },
+    "no_hidden_channels": {
+      "status": "todo",
+      "notes": "Verify no implicit state shared beyond A2ML manifests"
+    },
+    "evolution": {
+      "status": "todo",
+      "notes": "A2ML format versioning strategy needed"
+    }
+  },
+  "slo": {
+    "latency_ms_p95": 100,
+    "error_rate_max": 0.001
+  },
+  "failure_behavior": {
+    "timeouts": "Verification timeout at 30s per subsystem",
+    "retries": "No automatic retry — verification is deterministic",
+    "backpressure": "N/A — batch operation",
+    "idempotency": "All operations are idempotent"
+  },
+  "observability": {
+    "metrics": ["verification_duration_ms", "manifest_parse_errors"],
+    "logs": {
+      "required_fields": ["seam_id", "component", "event", "hash_algorithm"]
+    },
+    "tracing": {
+      "propagation": ["traceparent"]
+    }
+  },
+  "change_process": {
+    "required_reviewers": ["@hyperpolymath"],
+    "gates": ["seamctl validate"]
+  },
+  "rollout_backout": {
+    "rollout_steps": [
+      "Update A2ML format in ochrance",
+      "Update manifest emitter in reversible-core",
+      "Run cross-validation test suite"
+    ],
+    "backout_steps": [
+      "Revert A2ML format to previous version",
+      "Revert manifest emitter"
+    ]
+  }
+}

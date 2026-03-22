@@ -1,0 +1,384 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Seam Record",
+  "type": "object",
+  "required": [
+    "id",
+    "title",
+    "status",
+    "owners",
+    "side_a",
+    "side_b",
+    "boundary_type",
+    "data_flows",
+    "contract_artifacts",
+    "compat_policy",
+    "semantic_invariants",
+    "security_invariants",
+    "privacy_invariants",
+    "test_vectors",
+    "checks",
+    "slo",
+    "failure_behavior",
+    "observability",
+    "change_process",
+    "rollout_backout"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9\\-]*$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 3
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "active",
+        "deprecated"
+      ]
+    },
+    "owners": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "contact",
+          "role"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "contact": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "side_a": {
+      "type": "string",
+      "minLength": 1
+    },
+    "side_b": {
+      "type": "string",
+      "minLength": 1
+    },
+    "boundary_type": {
+      "type": "string",
+      "enum": [
+        "ipc",
+        "kernel_api",
+        "cli",
+        "library",
+        "network",
+        "human_machine"
+      ]
+    },
+    "data_flows": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "direction",
+          "description"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "a_to_b",
+              "b_to_a",
+              "bidirectional"
+            ]
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "contract_artifacts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "kind",
+          "version"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "compat_policy": {
+      "type": "object",
+      "required": [
+        "strategy",
+        "rules",
+        "deprecation_window_days"
+      ],
+      "properties": {
+        "strategy": {
+          "type": "string"
+        },
+        "rules": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "deprecation_window_days": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "semantic_invariants": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "security_invariants": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "privacy_invariants": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "test_vectors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "checks": {
+      "type": "object",
+      "required": [
+        "conformance",
+        "no_hidden_channels",
+        "evolution"
+      ],
+      "properties": {
+        "conformance": {
+          "type": "object",
+          "required": [
+            "status",
+            "notes"
+          ],
+          "properties": {
+            "status": {
+              "type": "string"
+            },
+            "notes": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "no_hidden_channels": {
+          "type": "object",
+          "required": [
+            "status",
+            "notes"
+          ],
+          "properties": {
+            "status": {
+              "type": "string"
+            },
+            "notes": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "evolution": {
+          "type": "object",
+          "required": [
+            "status",
+            "notes"
+          ],
+          "properties": {
+            "status": {
+              "type": "string"
+            },
+            "notes": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "slo": {
+      "type": "object",
+      "required": [
+        "latency_ms_p95",
+        "error_rate_max"
+      ],
+      "properties": {
+        "latency_ms_p95": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "error_rate_max": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "failure_behavior": {
+      "type": "object",
+      "required": [
+        "timeouts",
+        "retries",
+        "backpressure",
+        "idempotency"
+      ],
+      "properties": {
+        "timeouts": {
+          "type": "string"
+        },
+        "retries": {
+          "type": "string"
+        },
+        "backpressure": {
+          "type": "string"
+        },
+        "idempotency": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "observability": {
+      "type": "object",
+      "required": [
+        "metrics",
+        "logs",
+        "tracing"
+      ],
+      "properties": {
+        "metrics": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "logs": {
+          "type": "object",
+          "required": [
+            "required_fields"
+          ],
+          "properties": {
+            "required_fields": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "tracing": {
+          "type": "object",
+          "required": [
+            "propagation"
+          ],
+          "properties": {
+            "propagation": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "change_process": {
+      "type": "object",
+      "required": [
+        "required_reviewers",
+        "gates"
+      ],
+      "properties": {
+        "required_reviewers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "gates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "rollout_backout": {
+      "type": "object",
+      "required": [
+        "rollout_steps",
+        "backout_steps"
+      ],
+      "properties": {
+        "rollout_steps": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "backout_steps": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": true
+}
