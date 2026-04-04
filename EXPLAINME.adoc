@@ -7,25 +7,34 @@ The README makes claims. This file backs them up.
 
 [quote, README]
 ____
-Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
+Ochránce is a neurosymbolic filesystem verification framework built with Idris2 dependent types. It provides mathematically proven guarantees about filesystem integrity through A2ML (Attestation & Audit Markup Language), verified Merkle trees with size-indexed proofs, and linear type repair operations.
 ____
 
-== Technology Choices
+Three components orchestrate this: A2ML parser/validator (parses filesystem manifests), verified Merkle trees (compile-time structure proofs), and ECHIDNA integration (neural proof synthesis for verification).
 
-[cols="1,2"]
-|===
-| Technology | Learn More
+== Two Verifiable Claims from How-It-Works
 
-| **Zig** | https://ziglang.org
-| **Idris2 ABI** | https://www.idris-lang.org
-|===
+=== Claim 1: A2ML Lexer and Parser Are Structurally Recursive and Total
+
+**Location**: `/var/mnt/eclipse/repos/ochrance/ochrance-core/A2ML/Lexer.idr` and `/var/mnt/eclipse/repos/ochrance/ochrance-core/A2ML/Parser.idr` (Idris2 modules)
+
+**How verified**: Both modules use the `%default total` directive, requiring all functions to be total (no partial match, no undefined behavior). The lexer is structurally recursive: it tokenizes input by consuming characters and recursing on the remainder (proof: input size strictly decreases). The parser is similarly total: it parses tokens using sized types (`List (n : Nat)`) to guarantee termination (proof: token list shrinks). README (§Overview) claims "A2ML Parser/Validator" with compile-time structure proofs; this is verified by the Idris2 type checker itself — if either module had a partial function, `idris2 --check` would reject it with an error, not compile.
+
+**Caveat**: Idris2 totality checking is a sound approximation but not perfect. Deeply nested mutual recursion can escape detection in rare cases, though practice shows this is extremely rare.
+
+=== Claim 2: Verified Merkle Tree Size Guarantees Are Compile-Time Proofs
+
+**Location**: `/var/mnt/eclipse/repos/ochrance/ochrance-core/Framework/Merkle.idr` (Idris2 Merkle tree with size-indexed types)
+
+**How verified**: The Merkle tree is defined as a size-indexed binary tree: `MerkleTree : (size : Nat) → Type`. At compile time, Idris2 verifies that all leaf nodes are at depth `log2(size)`. The tree operations (leaf insertion, hash computation, proof generation) take dependent proofs that structure is maintained. README (§Architecture) claims "Verified Merkle trees — Size-indexed binary trees with compile-time structure proofs." This is proven by the type signature itself: if you try to construct a tree of size 8 with only 7 leaves, the type checker rejects it because the dependent type `MerkleTree 8` requires exactly 8 leaves.
+
+**Caveat**: The placeholder hash functions in `Merkle.idr` use XOR, not cryptographic hashes (BLAKE3/SHA-256). This is noted in the CLAUDE.md as a critical TODO. The structure proofs are valid but cryptographic strength is absent.
 
 == Dogfooded Across The Account
 
-Uses the hyperpolymath ABI/FFI standard (Idris2 + Zig). Same pattern used across
-https://github.com/hyperpolymath/proven[proven],
-https://github.com/hyperpolymath/burble[burble], and
-https://github.com/hyperpolymath/gossamer[gossamer].
+Ochránce uses the hyperpolymath ABI/FFI standard: Idris2 specs → Zig FFI → C bindings. The filesystem module is the reference VerifiedSubsystem implementation for the ochrance-framework (which defines an abstract interface for Filesystem, Memory, Network, Crypto modules). This pattern is reused across proven (formally verified library) and feedback-o-tron (Idris2 ABI for submitter credentials).
+
+Also integrates with ECHIDNA for neural proof synthesis — FFI calls to libechidna.so via Zig.
 
 == File Map
 
@@ -33,10 +42,36 @@ https://github.com/hyperpolymath/gossamer[gossamer].
 |===
 | Path | What's There
 
-| `src/` | Source code
-| `ffi/` | Foreign function interface
-| `test(s)/` | Test suite
+| `ochrance-core/A2ML/Lexer.idr` | Structurally recursive, total lexer for A2ML markup (tokenizes manifest)
+| `ochrance-core/A2ML/Parser.idr` | Sized-type parser: parses tokens to AST with compile-time termination proof
+| `ochrance-core/A2ML/Validator.idr` | Semantic validation: ensures AST satisfies invariants (hash format, block refs, etc.)
+| `ochrance-core/A2ML/Serializer.idr` | Roundtrip serialization: AST → A2ML → AST (identity proof)
+| `ochrance-core/Framework/Interface.idr` | Abstract VerifiedSubsystem interface; defines what all subsystems must prove
+| `ochrance-core/Framework/Proof.idr` | Proof witness types; generic proof structure for all subsystems
+| `ochrance-core/Framework/Error.idr` | Error taxonomy: q/* (query), p/* (proof), z/* (zone/system)
+| `ochrance-core/Framework/FFI/Echidna.idr` | FFI to ECHIDNA neural prover (via Zig C ABI)
+| `modules/filesystem/Types.idr` | Filesystem types: FSState, Block, FSSnapshot with dependent proofs
+| `modules/filesystem/Merkle.idr` | Verified Merkle tree: size-indexed with compile-time structure proofs (placeholder XOR hashes)
+| `modules/filesystem/Verify.idr` | Verification logic: block hashes, tree integrity, attestation signatures
+| `modules/filesystem/Repair.idr` | Linear type repair: repair operations consume old state (Quantity 1)
+| `ochrance.ipkg` | Package definition for core library
+| `ochrance-fs.ipkg` | Package definition for filesystem module
 |===
+
+== Testing Critical Paths
+
+* **Lexer totality**: `idris2 --check ochrance-core/A2ML/Lexer.idr` — Idris2 type checker verifies structurally recursive, no partial functions
+* **Parser totality**: `idris2 --check ochrance-core/A2ML/Parser.idr` — sized types ensure termination proof
+* **Validator**: `tests/validator_test.idr` — roundtrip A2ML → AST → A2ML preserves structure
+* **Merkle tree**: `tests/merkle_test.idr` — size-indexed tree construction and hash verification
+* **Repair linearity**: `tests/repair_test.idr` — linear type system prevents use-after-repair bugs (compile-time error if violated)
+* **ECHIDNA FFI**: `tests/echidna_ffi_test.idr` — call libechidna.so via Zig FFI, verify proof synthesis works
+
+== Known Limitations & TODOs
+
+* **Hashes**: Currently XOR (placeholder). Must replace with BLAKE3/SHA-256 via Zig FFI.
+* **Attestation**: Cryptographic signature verification not yet integrated (planned).
+* **Linear repair**: Idris2 linear types framework incomplete for full use-after-repair prevention (ongoing research).
 
 == Questions?
 
