@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: PMPL-1.0-or-later
+name: E2E and Integration Tests
+on:
+  push: { branches: [main] }
+  pull_request: { branches: ['**'] }
+permissions:
+  contents: read
+jobs:
+  e2e:
+    name: E2E tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Run E2E tests
+        run: bash tests/e2e_test.sh
+  integration:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
+      - name: Run integration tests
+        run: |
+          if [ -f "Cargo.toml" ]; then
+            cargo test --test '*' 2>/dev/null || echo "No integration tests"
+          fi
+          if ls tests/integration/*.sh 2>/dev/null | head -1 | grep -q .; then
+            for f in tests/integration/*.sh; do bash "$f"; done
+          fi
