@@ -61,6 +61,10 @@ test-integration: build-core
     idris2 --build tests/integration/tests.ipkg
     tests/integration/build/exec/integration-tests
 
+# End-to-end structural validation
+e2e:
+    bash tests/e2e_test.sh
+
 # Check totality of all functions
 check-totality:
     @echo "Checking totality..."
