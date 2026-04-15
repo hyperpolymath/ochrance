@@ -6,6 +6,8 @@
 # Zig    >= 0.11.0 (std.crypto.hash.Blake3, C ABI export)
 
 # Default recipe - list available commands
+import? "contractile.just"
+
 default:
     @just --list
 
