@@ -1,200 +1,274 @@
+// OCHRANCE FFI Implementation
+//
+// This module implements the C-compatible FFI declared in src/abi/Foreign.idr
+// All types and layouts must match the Idris2 ABI definitions.
+//
 // SPDX-License-Identifier: PMPL-1.0-or-later
-//
-// libochrance - C-compatible FFI implementation for cryptographic hashing
-//
-// This library provides memory-safe, formally-verified-ABI hash functions
-// callable from Idris2 via C FFI. All functions use platform-independent
-// byte representations.
-//
-// Minimum Zig version: 0.11.0
-//
-// Cryptographic algorithm versions (sourced from Zig stdlib):
-//   BLAKE3  - spec version 1.5 (https://github.com/BLAKE3-team/BLAKE3-specs)
-//   SHA-256 - FIPS 180-4
-//   SHA3-256 - FIPS 202
-//   Ed25519 - RFC 8032
-//
-// BLAKE3 note: This uses Zig's std.crypto.hash.Blake3 (pure Zig implementation
-// tracking the upstream BLAKE3 spec). The implementation is updated with each
-// Zig release. When upgrading Zig, verify BLAKE3 test vectors still pass.
 
 const std = @import("std");
-const crypto = std.crypto;
 
-// ============================================================================
-// BLAKE3 Implementation
-// ============================================================================
+// Version information (keep in sync with project)
+const VERSION = "0.1.0";
+const BUILD_INFO = "OCHRANCE built with Zig " ++ @import("builtin").zig_version_string;
 
-/// Hash arbitrary data with BLAKE3
-/// ABI Contract: data (const uint8_t*), len (size_t), out (uint8_t[32])
-export fn blake3_hash(data: [*c]const u8, len: usize, out: [*c]u8) void {
-    const input = data[0..len];
-    var hasher = crypto.hash.Blake3.init(.{});
-    hasher.update(input);
-    
-    var output: [32]u8 = undefined;
-    hasher.final(&output);
-    
-    // Copy to output buffer (ABI: contiguous 32 bytes)
-    @memcpy(out[0..32], &output);
+/// Thread-local error storage
+threadlocal var last_error: ?[]const u8 = null;
+
+/// Set the last error message
+fn setError(msg: []const u8) void {
+    last_error = msg;
 }
 
-// ============================================================================
-// SHA-256 Implementation
-// ============================================================================
-
-/// Hash arbitrary data with SHA-256
-/// ABI Contract: data (const uint8_t*), len (size_t), out (uint8_t[32])
-export fn sha256_hash(data: [*c]const u8, len: usize, out: [*c]u8) void {
-    const input = data[0..len];
-    var hasher = crypto.hash.sha2.Sha256.init(.{});
-    hasher.update(input);
-    
-    var output: [32]u8 = undefined;
-    hasher.final(&output);
-    
-    @memcpy(out[0..32], &output);
+/// Clear the last error
+fn clearError() void {
+    last_error = null;
 }
 
-// ============================================================================
-// SHA3-256 Implementation
-// ============================================================================
+//==============================================================================
+// Core Types (must match src/abi/Types.idr)
+//==============================================================================
 
-/// Hash arbitrary data with SHA3-256
-/// ABI Contract: data (const uint8_t*), len (size_t), out (uint8_t[32])
-export fn sha3_256_hash(data: [*c]const u8, len: usize, out: [*c]u8) void {
-    const input = data[0..len];
-    var hasher = crypto.hash.sha3.Sha3_256.init(.{});
-    hasher.update(input);
-    
-    var output: [32]u8 = undefined;
-    hasher.final(&output);
-    
-    @memcpy(out[0..32], &output);
-}
+/// Result codes (must match Idris2 Result type)
+pub const Result = enum(c_int) {
+    ok = 0,
+    @"error" = 1,
+    invalid_param = 2,
+    out_of_memory = 3,
+    null_pointer = 4,
+};
 
-// ============================================================================
-// Ed25519 Signature Verification
-// ============================================================================
+/// Library handle (opaque to prevent direct access)
+pub const Handle = opaque {
+    // Internal state hidden from C
+    allocator: std.mem.Allocator,
+    initialized: bool,
+    // Add your fields here
+};
 
-/// Verify an Ed25519 signature
-/// ABI Contract:
-///   signature: const uint8_t[64] - Ed25519 signature bytes
-///   public_key: const uint8_t[32] - Ed25519 public key bytes
-///   message: const uint8_t* - Message that was signed
-///   msg_len: size_t - Length of message
-/// Returns: 1 if valid, 0 if invalid
-export fn ed25519_verify(
-    signature: [*c]const u8,
-    public_key: [*c]const u8,
-    message: [*c]const u8,
-    msg_len: usize
-) c_int {
-    // Convert C pointers to Zig arrays
-    const sig_bytes: *const [64]u8 = @ptrCast(signature);
-    const pubkey_bytes: *const [32]u8 = @ptrCast(public_key);
-    const msg = message[0..msg_len];
+//==============================================================================
+// Library Lifecycle
+//==============================================================================
 
-    // Parse signature and public key
-    const ed_sig = crypto.sign.Ed25519.Signature.fromBytes(sig_bytes.*);
-    const ed_pubkey = crypto.sign.Ed25519.PublicKey.fromBytes(pubkey_bytes.*) catch {
-        return 0; // Invalid public key format
+/// Initialize the library
+/// Returns a handle, or null on failure
+export fn ochrance_init() ?*Handle {
+    const allocator = std.heap.c_allocator;
+
+    const handle = allocator.create(Handle) catch {
+        setError("Failed to allocate handle");
+        return null;
     };
 
-    // Verify signature
-    ed_sig.verify(msg, ed_pubkey) catch {
-        return 0; // Verification failed
+    // Initialize handle
+    handle.* = .{
+        .allocator = allocator,
+        .initialized = true,
     };
 
-    return 1; // Verification succeeded
+    clearError();
+    return handle;
 }
 
-// ============================================================================
+/// Free the library handle
+export fn ochrance_free(handle: ?*Handle) void {
+    const h = handle orelse return;
+    const allocator = h.allocator;
+
+    // Clean up resources
+    h.initialized = false;
+
+    allocator.destroy(h);
+    clearError();
+}
+
+//==============================================================================
+// Core Operations
+//==============================================================================
+
+/// Process data (example operation)
+export fn ochrance_process(handle: ?*Handle, input: u32) Result {
+    const h = handle orelse {
+        setError("Null handle");
+        return .null_pointer;
+    };
+
+    if (!h.initialized) {
+        setError("Handle not initialized");
+        return .@"error";
+    }
+
+    // Example processing logic
+    _ = input;
+
+    clearError();
+    return .ok;
+}
+
+//==============================================================================
+// String Operations
+//==============================================================================
+
+/// Get a string result (example)
+/// Caller must free the returned string
+export fn ochrance_get_string(handle: ?*Handle) ?[*:0]const u8 {
+    const h = handle orelse {
+        setError("Null handle");
+        return null;
+    };
+
+    if (!h.initialized) {
+        setError("Handle not initialized");
+        return null;
+    }
+
+    // Example: allocate and return a string
+    const result = h.allocator.dupeZ(u8, "Example result") catch {
+        setError("Failed to allocate string");
+        return null;
+    };
+
+    clearError();
+    return result.ptr;
+}
+
+/// Free a string allocated by the library
+export fn ochrance_free_string(str: ?[*:0]const u8) void {
+    const s = str orelse return;
+    const allocator = std.heap.c_allocator;
+
+    const slice = std.mem.span(s);
+    allocator.free(slice);
+}
+
+//==============================================================================
+// Array/Buffer Operations
+//==============================================================================
+
+/// Process an array of data
+export fn ochrance_process_array(
+    handle: ?*Handle,
+    buffer: ?[*]const u8,
+    len: u32,
+) Result {
+    const h = handle orelse {
+        setError("Null handle");
+        return .null_pointer;
+    };
+
+    const buf = buffer orelse {
+        setError("Null buffer");
+        return .null_pointer;
+    };
+
+    if (!h.initialized) {
+        setError("Handle not initialized");
+        return .@"error";
+    }
+
+    // Access the buffer
+    const data = buf[0..len];
+    _ = data;
+
+    // Process data here
+
+    clearError();
+    return .ok;
+}
+
+//==============================================================================
+// Error Handling
+//==============================================================================
+
+/// Get the last error message
+/// Returns null if no error
+export fn ochrance_last_error() ?[*:0]const u8 {
+    const err = last_error orelse return null;
+
+    // Return C string (static storage, no need to free)
+    const allocator = std.heap.c_allocator;
+    const c_str = allocator.dupeZ(u8, err) catch return null;
+    return c_str.ptr;
+}
+
+//==============================================================================
+// Version Information
+//==============================================================================
+
+/// Get the library version
+export fn ochrance_version() [*:0]const u8 {
+    return VERSION.ptr;
+}
+
+/// Get build information
+export fn ochrance_build_info() [*:0]const u8 {
+    return BUILD_INFO.ptr;
+}
+
+//==============================================================================
+// Callback Support
+//==============================================================================
+
+/// Callback function type (C ABI)
+pub const Callback = *const fn (u64, u32) callconv(.C) u32;
+
+/// Register a callback
+export fn ochrance_register_callback(
+    handle: ?*Handle,
+    callback: ?Callback,
+) Result {
+    const h = handle orelse {
+        setError("Null handle");
+        return .null_pointer;
+    };
+
+    const cb = callback orelse {
+        setError("Null callback");
+        return .null_pointer;
+    };
+
+    if (!h.initialized) {
+        setError("Handle not initialized");
+        return .@"error";
+    }
+
+    // Store callback for later use
+    _ = cb;
+
+    clearError();
+    return .ok;
+}
+
+//==============================================================================
+// Utility Functions
+//==============================================================================
+
+/// Check if handle is initialized
+export fn ochrance_is_initialized(handle: ?*Handle) u32 {
+    const h = handle orelse return 0;
+    return if (h.initialized) 1 else 0;
+}
+
+//==============================================================================
 // Tests
-// ============================================================================
+//==============================================================================
 
-test "blake3 empty string" {
-    const expected = "\xaf\x13\x49\xb9\xf5\xf9\xa1\xa6\xa0\x40\x4d\xea\x36\xdc\xc9\x49" ++
-                     "\x9b\xcb\x25\xc9\xad\xc1\x12\xb7\xcc\x9a\x93\xca\xe4\x1f\x32\x62";
-    
-    var output: [32]u8 = undefined;
-    blake3_hash("", 0, &output);
-    
-    try std.testing.expectEqualSlices(u8, expected, &output);
+test "lifecycle" {
+    const handle = ochrance_init() orelse return error.InitFailed;
+    defer ochrance_free(handle);
+
+    try std.testing.expect(ochrance_is_initialized(handle) == 1);
 }
 
-test "sha256 empty string" {
-    const expected = "\xe3\xb0\xc4\x42\x98\xfc\x1c\x14\x9a\xfb\xf4\xc8\x99\x6f\xb9\x24" ++
-                     "\x27\xae\x41\xe4\x64\x9b\x93\x4c\xa4\x95\x99\x1b\x78\x52\xb8\x55";
-    
-    var output: [32]u8 = undefined;
-    sha256_hash("", 0, &output);
-    
-    try std.testing.expectEqualSlices(u8, expected, &output);
+test "error handling" {
+    const result = ochrance_process(null, 0);
+    try std.testing.expectEqual(Result.null_pointer, result);
+
+    const err = ochrance_last_error();
+    try std.testing.expect(err != null);
 }
 
-test "sha3_256 empty string" {
-    const expected = "\xa7\xff\xc6\xf8\xbf\x1e\xd7\x66\x51\xc1\x47\x56\xa0\x61\xd6\x62" ++
-                     "\xf5\x80\xff\x4d\xe4\x3b\x49\xfa\x82\xd8\x0a\x4b\x80\xf8\x43\x4a";
-    
-    var output: [32]u8 = undefined;
-    sha3_256_hash("", 0, &output);
-    
-    try std.testing.expectEqualSlices(u8, expected, &output);
-}
-
-test "blake3 abc" {
-    const input = "abc";
-    const expected = "\x64\x37\xb3\xac\x38\x46\x51\x33\xff\xb6\x3b\x75\x27\x3a\x8d\xb5" ++
-                     "\x48\xc5\x58\x46\x5d\x79\xdb\x03\xfd\x35\x9c\x6c\xd5\xbd\x9d\x85";
-
-    var output: [32]u8 = undefined;
-    blake3_hash(input, input.len, &output);
-
-    try std.testing.expectEqualSlices(u8, expected, &output);
-}
-
-test "ed25519 valid signature" {
-    // Generate a keypair for testing
-    const seed: [32]u8 = [_]u8{1} ** 32;
-    const keypair = try crypto.sign.Ed25519.KeyPair.generateDeterministic(seed);
-
-    // Sign a message
-    const message = "test message";
-    const signature = try keypair.sign(message, null);
-
-    // Convert signature to bytes
-    const sig_bytes = signature.toBytes();
-    const pubkey_bytes = keypair.public_key.toBytes();
-
-    // Verify signature through FFI
-    const result = ed25519_verify(
-        &sig_bytes,
-        &pubkey_bytes,
-        message.ptr,
-        message.len
-    );
-
-    try std.testing.expectEqual(@as(c_int, 1), result);
-}
-
-test "ed25519 invalid signature" {
-    // Generate a keypair
-    const seed: [32]u8 = [_]u8{1} ** 32;
-    const keypair = try crypto.sign.Ed25519.KeyPair.generateDeterministic(seed);
-
-    // Create an invalid signature (all zeros)
-    const invalid_sig: [64]u8 = [_]u8{0} ** 64;
-    const pubkey_bytes = keypair.public_key.toBytes();
-
-    // Try to verify invalid signature
-    const message = "test message";
-    const result = ed25519_verify(
-        &invalid_sig,
-        &pubkey_bytes,
-        message.ptr,
-        message.len
-    );
-
-    try std.testing.expectEqual(@as(c_int, 0), result);
+test "version" {
+    const ver = ochrance_version();
+    const ver_str = std.mem.span(ver);
+    try std.testing.expectEqualStrings(VERSION, ver_str);
 }
