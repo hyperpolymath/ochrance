@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PMPL-1.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 = Ochránce Development Roadmap
 Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
 v0.1.0, 2026-02-07
@@ -170,6 +170,6 @@ See link:CONTRIBUTING.md[CONTRIBUTING.md] for guidelines on:
 
 == License
 
-SPDX-License-Identifier: PMPL-1.0-or-later
+SPDX-License-Identifier: MPL-2.0
 
 Copyright (C) 2026 Jonathan D.A. Jewell. All rights reserved.

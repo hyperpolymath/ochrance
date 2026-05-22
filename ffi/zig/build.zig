@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PMPL-1.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //
 // Minimum Zig version: 0.11.0
 // Required for: std.crypto.hash.Blake3, C ABI export, @memcpy builtin
