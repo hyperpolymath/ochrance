@@ -17,16 +17,20 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    // libc is required by std.heap.c_allocator (used by the handle lifecycle)
+    // and is the natural choice for a C-ABI FFI library.
+    lib.linkLibC();
     b.installArtifact(lib);
 
-    // Also create a shared library version
-    const shared_lib = b.addStaticLibrary(.{
+    // Also create a shared library version (libochrance.so) — this is what the
+    // Idris2 FFI loads at runtime.
+    const shared_lib = b.addSharedLibrary(.{
         .name = "ochrance-shared",
         .root_source_file = .{ .cwd_relative = "src/main.zig" },
         .target = target,
         .optimize = optimize,
     });
-    shared_lib.linkage = .dynamic;
+    shared_lib.linkLibC();
     b.installArtifact(shared_lib);
 
     // Tests
@@ -35,6 +39,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    tests.linkLibC();
 
     const run_tests = b.addRunArtifact(tests);
     const test_step = b.step("test", "Run unit tests");

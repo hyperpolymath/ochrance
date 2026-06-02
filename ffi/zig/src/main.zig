@@ -37,12 +37,12 @@ pub const Result = enum(c_int) {
     null_pointer = 4,
 };
 
-/// Library handle (opaque to prevent direct access)
-pub const Handle = opaque {
-    // Internal state hidden from C
+/// Library handle. Only ever crosses the C ABI boundary as an opaque
+/// pointer (`?*Handle`); the fields below are private to the Zig side.
+/// (A Zig `opaque {}` type cannot carry fields, so this is a struct.)
+pub const Handle = struct {
     allocator: std.mem.Allocator,
     initialized: bool,
-    // Add your fields here
 };
 
 //==============================================================================
@@ -196,12 +196,12 @@ export fn ochrance_last_error() ?[*:0]const u8 {
 
 /// Get the library version
 export fn ochrance_version() [*:0]const u8 {
-    return VERSION.ptr;
+    return VERSION;
 }
 
 /// Get build information
 export fn ochrance_build_info() [*:0]const u8 {
-    return BUILD_INFO.ptr;
+    return BUILD_INFO;
 }
 
 //==============================================================================
