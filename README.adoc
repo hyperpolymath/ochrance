@@ -84,7 +84,7 @@ link:https://github.com/hyperpolymath/echo-types[echo-types] supplying the
 semantics of the residue/loss those transitions expose. This relationship is
 **documentation-only and not mechanised** today — see
 link:docs/VALENCE_SHELL_BRIDGE.adoc[`docs/VALENCE_SHELL_BRIDGE.adoc`] (and its
-machine-readable companion `.machine_readable/VALENCE_SHELL_BRIDGE.a2ml`) for
+machine-readable companion `.machine_readable/integrations/valence-shell-bridge.a2ml`) for
 the trust boundaries and caveats.
 
 == License

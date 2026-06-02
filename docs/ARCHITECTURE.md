@@ -109,7 +109,7 @@ the *receipt layer* for valence-shell's accountable state transitions, with
 constrained / lossy / obliterative). That bridge is **not mechanised** and makes
 no cryptographic-integrity, GDPR, or end-to-end-correctness claim. See
 [`VALENCE_SHELL_BRIDGE.adoc`](VALENCE_SHELL_BRIDGE.adoc) and its machine-readable
-companion `.machine_readable/VALENCE_SHELL_BRIDGE.a2ml` for the trust boundaries
+companion `.machine_readable/integrations/valence-shell-bridge.a2ml` for the trust boundaries
 and caveats.
 
 ---

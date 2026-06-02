@@ -12,7 +12,7 @@ v0.1.0, 2026-06-02
 This is a *documentation bridge and agent-orientation note*. It is **not**
 an integration, **not** a specification of shipped behaviour, and **not** a
 trust claim. Nothing described here is mechanised today. The companion
-machine-readable note at `.machine_readable/VALENCE_SHELL_BRIDGE.a2ml` records
+machine-readable note at `.machine_readable/integrations/valence-shell-bridge.a2ml` records
 the bridge status in structured form. See also the existing
 link:ARCHITECTURE.md[`docs/ARCHITECTURE.md`] "Reversibility Stack" framing,
 which this document refines with the evidence/receipt and residue/loss layers.
@@ -268,7 +268,7 @@ assert, and must not be cited as asserting, any of the following:
 
 * link:ARCHITECTURE.md[`docs/ARCHITECTURE.md`] — the Reversibility Stack
   (januskey → valence-shell → ochrance) this bridge refines.
-* `.machine_readable/VALENCE_SHELL_BRIDGE.a2ml` — the structured bridge-status
+* `.machine_readable/integrations/valence-shell-bridge.a2ml` — the structured bridge-status
   note (machine-readable companion to this document).
 * link:../EXPLAINME.adoc[`EXPLAINME.adoc`] — Ochránce's "show me the receipts"
   honesty pass, including the same hash/attestation/repair caveats.
