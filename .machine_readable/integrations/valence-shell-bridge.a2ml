@@ -45,7 +45,7 @@ end-to-end           = "none of this currently proves Valence Shell implementati
 
 # Ochrance integrity caveats. Load-bearing; carry into any future receipt.
 [caveats]
-hashes      = "no cryptographic filesystem integrity while placeholder XOR/zero hash stubs remain reachable; BLAKE3/SHA-256 FFI exists but production wiring is not complete"
+hashes      = "Zig std.crypto primitives (BLAKE3/SHA-256/SHA3-256/Ed25519) are now implemented in ffi/zig/src/main.zig; still no cryptographic filesystem-integrity claim while Idris-side XOR/zero stub fallbacks remain reachable and libochrance.so is not yet built and linked into the verification flow"
 attestation = "no full attestation until Ed25519 signature verification is integrated end-to-end with a trust-root/key-management story (stub + signature-skipping path still present)"
 linear-repair = "no complete linear repair until that work is actually complete; linear quantities are typed but repair bodies are stubbed/elided"
 

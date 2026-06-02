@@ -159,15 +159,17 @@ Ochránce is the receipt substrate, but its integrity guarantees are still
 under construction. The following caveats are load-bearing and must be carried
 into any future receipt before it is trusted.
 
-. *No cryptographic filesystem-integrity claim while placeholder hashes
-  remain.* FFI bindings to BLAKE3 / SHA-256 / SHA3-256 exist in
-  `ochrance-core/Ochrance/FFI/Crypto.idr`, and `Merkle.idr` calls
-  `hashPairBlake3`. **But** XOR/zero-hash stub fallbacks (`hashPairStub`,
-  `blake3Stub`, …) still live in the tree, the cryptographic path depends on
-  `libochrance.so` actually being built and linked, and the roadmap still
-  lists "replace Merkle XOR placeholder with BLAKE3 FFI" as incomplete. Until
-  the stub paths are removed and the FFI path is the only one, Merkle roots are
-  *structural* commitments, not cryptographic ones.
+. *No cryptographic filesystem-integrity claim while placeholder hashes remain
+  reachable.* The Zig FFI now implements real primitives — BLAKE3, SHA-256,
+  SHA3-256 and Ed25519 verification via Zig's audited `std.crypto`
+  (`ffi/zig/src/main.zig`) — and the Idris bindings in
+  `ochrance-core/Ochrance/FFI/Crypto.idr` (plus `Merkle.idr`'s `hashPairBlake3`)
+  call them. **But the integrity story is not yet closed:** XOR/zero-hash stub
+  fallbacks (`hashPairStub`, `blake3Stub`, …) still live in the Idris tree, the
+  cryptographic path still depends on `libochrance.so` being built and linked
+  into the verification flow, and the roadmap still lists the Merkle BLAKE3
+  wiring as incomplete. Until the stub paths are removed and the FFI path is the
+  only one, Merkle roots are *structural* commitments, not cryptographic ones.
 
 . *No full-attestation claim until signature verification is integrated.*
   `ed25519Verify` and `validateManifestIO` exist and can check an Ed25519

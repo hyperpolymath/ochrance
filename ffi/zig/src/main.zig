@@ -249,6 +249,56 @@ export fn ochrance_is_initialized(handle: ?*Handle) u32 {
 }
 
 //==============================================================================
+// Cryptographic Hash + Signature FFI
+//
+// C ABI — must match the %foreign declarations in
+// ochrance-core/Ochrance/FFI/Crypto.idr:
+//   void blake3_hash   (const uint8_t* data, size_t len, uint8_t out[32]);
+//   void sha256_hash   (const uint8_t* data, size_t len, uint8_t out[32]);
+//   void sha3_256_hash (const uint8_t* data, size_t len, uint8_t out[32]);
+//   int  ed25519_verify(const uint8_t sig[64], const uint8_t pk[32],
+//                       const uint8_t* msg, size_t msg_len);  // 1=valid, 0=invalid
+//
+// Backed by Zig's audited std.crypto (Zig 0.11.0). These replace the XOR/zero
+// placeholder hashes; see ROADMAP Phase 1 and docs/VALENCE_SHELL_BRIDGE.adoc,
+// which gate cryptographic-integrity claims on closing exactly this gap.
+//==============================================================================
+
+const Ed25519 = std.crypto.sign.Ed25519;
+
+/// BLAKE3 → 32-byte digest.
+export fn blake3_hash(data: [*]const u8, len: usize, out: [*]u8) void {
+    std.crypto.hash.Blake3.hash(data[0..len], out[0..32], .{});
+}
+
+/// SHA-256 → 32-byte digest.
+export fn sha256_hash(data: [*]const u8, len: usize, out: [*]u8) void {
+    std.crypto.hash.sha2.Sha256.hash(data[0..len], out[0..32], .{});
+}
+
+/// SHA3-256 → 32-byte digest.
+export fn sha3_256_hash(data: [*]const u8, len: usize, out: [*]u8) void {
+    std.crypto.hash.sha3.Sha3_256.hash(data[0..len], out[0..32], .{});
+}
+
+/// Verify an Ed25519 signature over `msg`.
+/// Returns 1 if valid, 0 otherwise (including a malformed public key or
+/// signature). Never traps on attacker-controlled input.
+export fn ed25519_verify(
+    sig: [*]const u8,
+    pk: [*]const u8,
+    msg: [*]const u8,
+    msg_len: usize,
+) c_int {
+    const sig_bytes: [64]u8 = sig[0..64].*;
+    const pk_bytes: [32]u8 = pk[0..32].*;
+    const public_key = Ed25519.PublicKey.fromBytes(pk_bytes) catch return 0;
+    const signature = Ed25519.Signature.fromBytes(sig_bytes);
+    signature.verify(msg[0..msg_len], public_key) catch return 0;
+    return 1;
+}
+
+//==============================================================================
 // Tests
 //==============================================================================
 
@@ -271,4 +321,77 @@ test "version" {
     const ver = ochrance_version();
     const ver_str = std.mem.span(ver);
     try std.testing.expectEqualStrings(VERSION, ver_str);
+}
+
+//==============================================================================
+// Cryptographic Tests — known-answer vectors + Ed25519 round-trip.
+// These call the exported C-ABI functions directly, so they validate the FFI
+// surface, not just the underlying std.crypto.
+//==============================================================================
+
+fn expectDigest(out: [32]u8, comptime hex: []const u8) !void {
+    var expected: [32]u8 = undefined;
+    _ = try std.fmt.hexToBytes(&expected, hex);
+    try std.testing.expectEqualSlices(u8, &expected, &out);
+}
+
+test "blake3_hash known-answer vectors" {
+    var out: [32]u8 = undefined;
+    const empty: []const u8 = "";
+    blake3_hash(empty.ptr, empty.len, &out);
+    try expectDigest(out, "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262");
+    const abc: []const u8 = "abc";
+    blake3_hash(abc.ptr, abc.len, &out);
+    try expectDigest(out, "6437b3ac38465133ffb63b75273a8db548c558465d79db03fd359c6cd5bd9d85");
+}
+
+test "sha256_hash known-answer vectors" {
+    var out: [32]u8 = undefined;
+    const empty: []const u8 = "";
+    sha256_hash(empty.ptr, empty.len, &out);
+    try expectDigest(out, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+    const abc: []const u8 = "abc";
+    sha256_hash(abc.ptr, abc.len, &out);
+    try expectDigest(out, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+}
+
+test "sha3_256_hash known-answer vectors" {
+    var out: [32]u8 = undefined;
+    const empty: []const u8 = "";
+    sha3_256_hash(empty.ptr, empty.len, &out);
+    try expectDigest(out, "a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a");
+    const abc: []const u8 = "abc";
+    sha3_256_hash(abc.ptr, abc.len, &out);
+    try expectDigest(out, "3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532");
+}
+
+test "ed25519_verify accepts valid and rejects tampered" {
+    const seed = [_]u8{42} ** 32;
+    const kp = try Ed25519.KeyPair.create(seed);
+    const message: []const u8 = "ochrance attestation";
+    const signature = try kp.sign(message, null);
+    const sig_bytes = signature.toBytes();
+    const pk_bytes = kp.public_key.bytes;
+
+    // Valid signature verifies.
+    try std.testing.expectEqual(
+        @as(c_int, 1),
+        ed25519_verify(&sig_bytes, &pk_bytes, message.ptr, message.len),
+    );
+
+    // A tampered signature is rejected, not trapped on.
+    var tampered = sig_bytes;
+    tampered[0] ^= 0xFF;
+    try std.testing.expectEqual(
+        @as(c_int, 0),
+        ed25519_verify(&tampered, &pk_bytes, message.ptr, message.len),
+    );
+
+    // The wrong public key is rejected.
+    var wrong_pk = pk_bytes;
+    wrong_pk[0] ^= 0xFF;
+    try std.testing.expectEqual(
+        @as(c_int, 0),
+        ed25519_verify(&sig_bytes, &wrong_pk, message.ptr, message.len),
+    );
 }
