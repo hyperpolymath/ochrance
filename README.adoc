@@ -75,6 +75,18 @@ The two repos are **complementary**, not duplicates:
 * **ochrance** (this repo) — concrete filesystem verification implementation (~80% complete)
 * **ochrance-framework** — abstract modular framework for all four subsystems (~10% complete)
 
+=== valence-shell & echo-types (Reversibility Stack neighbours)
+
+Ochránce can *eventually* act as the receipt layer for
+link:https://github.com/hyperpolymath/valence-shell[valence-shell]'s
+accountable state transitions, with
+link:https://github.com/hyperpolymath/echo-types[echo-types] supplying the
+semantics of the residue/loss those transitions expose. This relationship is
+**documentation-only and not mechanised** today — see
+link:docs/VALENCE_SHELL_BRIDGE.adoc[`docs/VALENCE_SHELL_BRIDGE.adoc`] (and its
+machine-readable companion `.machine_readable/VALENCE_SHELL_BRIDGE.a2ml`) for
+the trust boundaries and caveats.
+
 == License
 
 SPDX-License-Identifier: MPL-2.0

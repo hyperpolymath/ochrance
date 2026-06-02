@@ -1,0 +1,282 @@
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
+= Ochránce ↔ Valence Shell ↔ Echo Types: A Documentation Bridge
+Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
+v0.1.0, 2026-06-02
+:toc:
+:icons: font
+:source-highlighter: rouge
+
+== Status of this document
+
+This is a *documentation bridge and agent-orientation note*. It is **not**
+an integration, **not** a specification of shipped behaviour, and **not** a
+trust claim. Nothing described here is mechanised today. The companion
+machine-readable note at `.machine_readable/VALENCE_SHELL_BRIDGE.a2ml` records
+the bridge status in structured form. See also the existing
+link:ARCHITECTURE.md[`docs/ARCHITECTURE.md`] "Reversibility Stack" framing,
+which this document refines with the evidence/receipt and residue/loss layers.
+
+The one sentence to remember:
+
+[quote]
+____
+*Ochránce is the receipt layer for Valence Shell's accountable state
+transitions; Echo Types is the semantics of the residue/loss those
+transitions expose.*
+____
+
+== Why these three projects
+
+Three independently-useful projects line up to tell one story — *did the
+filesystem change, can the change be undone, and what was lost?* — but they
+make **different kinds of claim** and must not be conflated.
+
+[cols="1,2,2",options="header"]
+|===
+| Project | Role in the bridge | What it actually is
+
+| link:https://github.com/hyperpolymath/valence-shell[*Valence Shell* (`vsh`)]
+| *Operational layer.* Executes shell/filesystem actions, tracks operation
+  history, and supports `undo`/`redo`/`checkpoint`/`restore`/`diff`/`replay`.
+  Carries the MAA framework's RMR/RMO vocabulary.
+| A formally-verified *shell* (Rust CLI, v0.9.0, advanced research prototype).
+  Reversibility theorems are stated across several proof systems (Lean 4 is
+  the primary source of truth), but the Lean→Rust correspondence is
+  *property-tested, not mechanised*. NOT production-ready.
+
+| link:https://github.com/hyperpolymath/echo-types[*Echo Types*]
+| *Semantic layer.* Classifies the residue/loss exposed by a state
+  transition: how much of the input survives in the observed output.
+| A constructive Agda formalisation of structured loss. For a map
+  `f : A → B`, the central object is the proof-relevant fibre
+  `Echo f y := Σ (x : A), (f x ≡ y)`. Developed `--safe --without-K`.
+  Its theorems are about *abstract maps*; they mention neither Valence
+  Shell nor Ochránce.
+
+| *Ochránce* (this repo)
+| *Evidence / receipt substrate.* A2ML manifests, verified Merkle-backed
+  state commitments, repair witnesses, and (future) attestation surfaces
+  that can record *concrete filesystem state evidence* at the boundaries of
+  a transition.
+| A neurosymbolic filesystem-verification framework in Idris2. Answers
+  "is the filesystem still what we said it was?" via dependent types over
+  Merkle trees and A2ML. Phase 1, ~54% complete; several integrity-bearing
+  components are still placeholders (see <<caveats>>).
+|===
+
+NOTE: `docs/ARCHITECTURE.md` already positions these as a loosely-coupled
+"Reversibility Stack" (januskey → valence-shell → ochrance). This bridge adds
+the explicit *receipt* reading of Ochránce and the *semantic residue* reading
+of Echo Types on top of that stack. The layers compose conceptually; they are
+not wired together in code.
+
+== Trust boundaries (read this before believing anything)
+
+The whole point of writing this down is to keep three different claim-types
+from leaking into one another. Each layer is sound only *within its own
+boundary*.
+
+. *Valence Shell proofs concern modelled shell operations.* The reversibility
+  theorems (e.g. that `rmdir ∘ mkdir` returns the original state) are proved
+  about an *abstract model* of shell semantics. The running Rust binary is
+  related to that model by property testing, not by a mechanised extraction
+  proof. A green proof does **not** by itself certify the implementation.
+
+. *Echo Types classifies information; it does not execute or attest anything.*
+  It tells you, for a given map, *which class of loss* a transition belongs to
+  (recoverable / constrained / lossy / obliterative — see <<residue>>). It is a
+  semantics, not a runtime, and not an evidence store.
+
+. *Ochránce receipts can attest to concrete filesystem state evidence* —
+  Merkle commitments over actual blocks, A2ML manifests, and verification
+  witnesses — *once the integrity gaps in <<caveats>> are closed*. Today the
+  attestable evidence is structurally sound but not cryptographically strong.
+
+. *None of this currently proves Valence Shell implementation correctness
+  end-to-end.* The three boundaries do not yet compose into a single
+  end-to-end guarantee, and this document does not assert that they do.
+
+[#residue]
+== Echo Types: the semantics of the residue
+
+A Valence Shell transition is, semantically, a map from a pre-state to a
+post-state. Echo Types asks: *given the observed post-state, what is the fibre
+of pre-states that map to it?* That fibre — `Echo f y` — is the **residue**:
+the proof-relevant record of what the transition did and did not preserve.
+
+We use four residue classes as the bridge vocabulary. The mapping below is a
+*design correspondence* — a human reading of which Echo-Types shape a given
+Valence Shell operation-class resembles. It is **not** a mechanised
+classification, and Echo Types proves nothing *about* Valence Shell.
+
+[cols="1,2,2",options="header"]
+|===
+| Residue class | Echo-Types reading (abstract `f : A → B`) | Valence Shell correspondence (design only)
+
+| *recoverable*
+| The map is (essentially) an equivalence; a section exists and the input is
+  reconstructible from the output. Cf. the totality completion `A ≃ Σ B (Echo f)`
+  and the `HasInverse`/equivalence case of the loss taxonomy.
+| RMR-class reversible operations with a working inverse in history:
+  `cp`, `mv`, `ln -s`, `mkdir`/`rmdir`, reversible variable assignment —
+  the cases `undo`/`redo` already cover.
+
+| *constrained*
+| Injective-but-not-surjective shapes: the input is recoverable *only with
+  retained side-evidence* (the fibre/witness, a checkpoint, kept metadata).
+| Operations recoverable only via `checkpoint`/`restore` or retained
+  history — recovery is possible *given the evidence Ochránce holds*, not
+  intrinsically.
+
+| *lossy*
+| Genuine collapse with a *non-trivial, observable* residue: you can see that
+  information was dropped and classify it, but you cannot invert the map.
+| Overwrites / truncations where prior content is gone but the *fact and shape*
+  of the change remain observable in commitments and diffs.
+
+| *obliterative*
+| Maximal collapse. Echo Types proves, for abstract collapsing maps, that
+  **no section exists** (the `no-section` family, e.g.
+  `no-section-of-collapsing-map`). The fibre cannot be inverted, by theorem.
+| RMO-class operations (Remove-Match-Obliterate): irreversible erasure *by
+  design*. The no-section result is the semantic witness that this class is
+  **not** reversible.
+|===
+
+[WARNING]
+====
+Read the *obliterative* row in the correct direction. The Echo-Types
+no-section theorem says an obliterative map has *no recovery section*. It is
+the formal statement that RMO-class operations *cannot* be undone — **not**
+that they can. RMO is irreversible; this bridge never claims otherwise.
+====
+
+[#caveats]
+== Ochránce caveats (preserved verbatim in intent)
+
+Ochránce is the receipt substrate, but its integrity guarantees are still
+under construction. The following caveats are load-bearing and must be carried
+into any future receipt before it is trusted.
+
+. *No cryptographic filesystem-integrity claim while placeholder hashes
+  remain.* FFI bindings to BLAKE3 / SHA-256 / SHA3-256 exist in
+  `ochrance-core/Ochrance/FFI/Crypto.idr`, and `Merkle.idr` calls
+  `hashPairBlake3`. **But** XOR/zero-hash stub fallbacks (`hashPairStub`,
+  `blake3Stub`, …) still live in the tree, the cryptographic path depends on
+  `libochrance.so` actually being built and linked, and the roadmap still
+  lists "replace Merkle XOR placeholder with BLAKE3 FFI" as incomplete. Until
+  the stub paths are removed and the FFI path is the only one, Merkle roots are
+  *structural* commitments, not cryptographic ones.
+
+. *No full-attestation claim until signature verification is integrated.*
+  `ed25519Verify` and `validateManifestIO` exist and can check an Ed25519
+  attestation, but an `ed25519VerifyStub` remains, the pure `validateManifest`
+  path skips signatures entirely, there is no key-management / trust-root
+  story, and the whole path again depends on `libochrance.so`. "Attested"
+  mode is defined; it is not yet an end-to-end trustworthy attestation.
+
+. *No complete-linear-repair claim until that work is actually complete.*
+  `Repair.idr` correctly types repair with linear quantities
+  (`(1 oldState : FSState)`) so old state must be consumed, but the repair
+  bodies are stubbed/elided (`linearVerifyAndRepair` currently returns
+  `NoRepairNeeded`), and the roadmap marks linear repair incomplete. The
+  *discipline* is in place; the *implementation* is not finished.
+
+== Future event shape (design sketch — NOT implemented)
+
+If and when the gaps above close, a Valence Shell transition could emit an
+Ochránce-anchored receipt. The shape below is **design only**. No such type
+exists in this repository today, and none should be added until the gating in
+<<gating>> is met (the task that produced this note is explicitly
+documentation, not implementation).
+
+[source,text]
+----
+ValenceShellReceipt := {
+  event_id,                // correlation id for this transition
+  command,                 // the Valence Shell operation that ran
+  pre_state_commitment,    // Merkle commitment over the pre-state
+  post_state_commitment,   // Merkle commitment over the post-state
+  valence_proof_ref,       // ref to the Valence Shell (Lean 4) model proof
+  echo_residue_class,      // recoverable | constrained | lossy | obliterative
+  ochrance_manifest_ref,   // ref to the A2ML manifest describing the state
+  merkle_root,             // the verified Merkle root (Hash)
+  attestation_ref,         // ref to the Ed25519 attestation, if any
+  trust_boundary,          // which layer is asserting what, and its limits
+  status                   // bridge/receipt status (see the .a2ml note)
+}
+----
+
+Where each field would bind, and its trust status *today*:
+
+[cols="1,2,1",options="header"]
+|===
+| Field | Would bind to | Trust status today
+
+| `event_id` | A fresh correlation id minted per transition. | n/a (bookkeeping)
+| `command` | A Valence Shell `Operation` from its history log. | operational only
+| `pre_state_commitment` | `MerkleTree` root over the pre-state blocks. | *structural, not cryptographic* (caveat 1)
+| `post_state_commitment` | `MerkleTree` root over the post-state blocks. | *structural, not cryptographic* (caveat 1)
+| `valence_proof_ref` | A Valence Shell Lean 4 theorem (e.g. an RMR reversibility lemma). | *modelled operations only* (boundary 1)
+| `echo_residue_class` | One of the four <<residue>> classes. | *design judgement, not mechanised*
+| `ochrance_manifest_ref` | An A2ML `Manifest` / `ValidManifest`. | parser/validator real; signatures gated
+| `merkle_root` | `Hash` from a `CheckedProof`. | *structural until hashes are real* (caveat 1)
+| `attestation_ref` | An `Attestation` (Ed25519). | *not trustworthy until integrated* (caveat 2)
+| `trust_boundary` | An enumerated tag naming the asserting layer + its limit. | the discipline this whole doc encodes
+| `status` | A bridge-status tag mirroring the `.a2ml` note. | `documentation-bridge`, `not-mechanised`
+|===
+
+[#gating]
+== What must be true before any code is written
+
+This bridge stays documentation-only until *all* of the following hold. Each
+maps to a caveat or boundary above.
+
+* Ochránce uses real cryptographic hashes end-to-end (no XOR/zero stub path
+  reachable) — closes caveat 1.
+* Ochránce attestation does real Ed25519 signature verification with a
+  defined trust-root / key-management story — closes caveat 2.
+* Ochránce linear repair is implemented, not stubbed — closes caveat 3.
+* Valence Shell exposes a stable, referenceable proof/operation handle for
+  `valence_proof_ref`, with its modelled-vs-implementation boundary stated.
+* A residue-classification procedure exists that is more than a human reading,
+  if `echo_residue_class` is to be machine-trusted rather than advisory.
+
+Only when the *exact* receipt/event shape is actually needed and supportable
+should any of this be turned into Idris2 types, A2ML schema, or wire format.
+
+== Explicit non-claims (guardrails)
+
+To keep future readers (human and agent) honest, this bridge does **not**
+assert, and must not be cited as asserting, any of the following:
+
+* ❌ Ochránce does *not* prove Valence Shell correct. It can, in future,
+  *attest to filesystem state evidence* — a strictly weaker thing.
+* ❌ Echo Types does *not* prove Ochránce correct. It supplies *semantics for
+  loss classification*, nothing about Ochránce's implementation.
+* ❌ RMO is *not* undoable. The obliterative class is precisely the one Echo
+  Types shows has *no section*.
+* ❌ No GDPR-compliance claim. Right-to-erasure would need RMO *implemented* in
+  Valence Shell (today: stubs) **and** Ochránce's hash + attestation +
+  evidence chain *closed* (today: open). Neither holds.
+* ❌ No Echidna claim. There is no concrete, tested Echidna integration in this
+  bridge; any future automated-verification surface is out of scope until it
+  actually exists and is tested.
+
+== See also
+
+* link:ARCHITECTURE.md[`docs/ARCHITECTURE.md`] — the Reversibility Stack
+  (januskey → valence-shell → ochrance) this bridge refines.
+* `.machine_readable/VALENCE_SHELL_BRIDGE.a2ml` — the structured bridge-status
+  note (machine-readable companion to this document).
+* link:../EXPLAINME.adoc[`EXPLAINME.adoc`] — Ochránce's "show me the receipts"
+  honesty pass, including the same hash/attestation/repair caveats.
+* link:../ROADMAP.adoc[`ROADMAP.adoc`] — Ochránce phase plan; the gating in
+  <<gating>> tracks its open Phase-1 items.
+
+== License
+
+SPDX-License-Identifier: MPL-2.0
+
+Copyright (C) 2026 Jonathan D.A. Jewell. All rights reserved.
