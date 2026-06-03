@@ -80,6 +80,7 @@ htmlcov/
 
 # Zig
 **/zig-out/
+**/zig-cache/
 **/.zig-cache/
 
 # Shared libraries
