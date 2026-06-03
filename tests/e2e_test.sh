@@ -10,7 +10,10 @@ set -euo pipefail
 
 PASS=0
 FAIL=0
-BASE=/var/mnt/eclipse/repos/ochrance
+# Resolve the repository root from this script's own location so the suite
+# runs identically in CI ($GITHUB_WORKSPACE), in containers, and locally —
+# never a developer-specific absolute path.
+BASE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 assert() {
     local desc="$1"
