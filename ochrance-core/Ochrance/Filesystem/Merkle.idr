@@ -2,9 +2,10 @@
 |||
 ||| Ochrance.Filesystem.Merkle - Verified Merkle tree implementation
 |||
-||| Uses size-indexed types (Vect) to ensure the tree structure is
-||| correct at compile time. The merkleCorrect theorem proves that
-||| building a tree and extracting its root is consistent.
+||| Uses height-indexed types to ensure the tree structure is correct at
+||| compile time. The `merkleCorrect` theorem proves inclusion-proof soundness:
+||| every proof produced by `generateProof` for an in-range leaf reconstructs
+||| the tree's true root (a machine-checked propositional equality).
 
 module Ochrance.Filesystem.Merkle
 
@@ -222,3 +223,82 @@ getLeafHash {n = S k} (Node l r) idx =
   if idx < halfSize
      then getLeafHash l idx
      else getLeafHash r (idx `minus` halfSize)
+
+--------------------------------------------------------------------------------
+-- Inclusion-Proof Soundness (merkleCorrect)
+--------------------------------------------------------------------------------
+
+||| The hash an inclusion proof reconstructs: start from a leaf hash and fold in
+||| each sibling, left or right, exactly as `verifyProof` does. This is the value
+||| `verifyProof` compares against the root (see `verifyProofReconstructs`).
+public export
+reconstruct : HashBytes -> MerkleProof -> HashBytes
+reconstruct acc [] = acc
+reconstruct acc ((GoLeft,  sib) :: rest) = reconstruct (hashPairStub acc sib) rest
+reconstruct acc ((GoRight, sib) :: rest) = reconstruct (hashPairStub sib acc) rest
+
+||| `reconstruct` distributes over path concatenation: folding `p ++ q` equals
+||| folding `p`, then folding `q` from that result.
+reconstructAppend : (acc : HashBytes) -> (p, q : MerkleProof)
+                 -> reconstruct acc (p ++ q) = reconstruct (reconstruct acc p) q
+reconstructAppend acc []                       q = Refl
+reconstructAppend acc ((GoLeft,  sib) :: rest) q = reconstructAppend (hashPairStub acc sib) rest q
+reconstructAppend acc ((GoRight, sib) :: rest) q = reconstructAppend (hashPairStub sib acc) rest q
+
+||| `verifyProof` is exactly a root-equality test on the reconstructed hash.
+||| This bridges the propositional soundness theorem below to the Bool API.
+export
+verifyProofReconstructs : (root, leaf : HashBytes) -> (prf : MerkleProof)
+                       -> verifyProof root leaf prf = (root == reconstruct leaf prf)
+verifyProofReconstructs root leaf []                       = Refl
+verifyProofReconstructs root leaf ((GoLeft,  sib) :: rest) =
+  verifyProofReconstructs root (hashPairStub leaf sib) rest
+verifyProofReconstructs root leaf ((GoRight, sib) :: rest) =
+  verifyProofReconstructs root (hashPairStub sib leaf) rest
+
+-- Injectivity of `Just`, used to read prf back out of the generated proof.
+justInj : {0 a : Type} -> {0 x, y : a} -> Just x = Just y -> x = y
+justInj Refl = Refl
+
+||| SOUNDNESS (merkleCorrect): every inclusion proof produced by `generateProof`
+||| for an in-range leaf reconstructs the tree's true root.
+|||
+||| Stated as a propositional equality on the 32-byte digest — the strongest
+||| honest form. `verifyProof` then accepts the proof, because it is exactly
+||| `root == reconstruct leaf prf` (`verifyProofReconstructs`) and here the
+||| reconstruction equals the root. (The residual `root == root` Bool step holds
+||| for any lawful `Eq`; discharging it for the primitive `Bits8` equality would
+||| need an unsafe primitive-reflexivity axiom, which is why the propositional
+||| statement is the right one.)
+export
+merkleCorrect : {n : Nat} -> (t : MerkleTree n) -> (i : Nat)
+             -> (leaf : HashBytes) -> (prf : MerkleProof)
+             -> getLeafHash t i = Just leaf
+             -> generateProof t i = Just prf
+             -> reconstruct leaf prf = rootHashBytes t
+merkleCorrect (Leaf h) Z leaf prf gl gp =
+  rewrite justInj (sym gl) in rewrite justInj (sym gp) in Refl
+merkleCorrect (Leaf h) (S j) leaf prf gl gp = absurd gl
+merkleCorrect {n = S k} (Node l r) i leaf prf gl gp with (i < power 2 k) proof pb
+  merkleCorrect {n = S k} (Node l r) i leaf prf gl gp | True with (generateProof l i) proof ps
+    merkleCorrect {n = S k} (Node l r) i leaf prf gl gp | True | Just sub =
+      let prfIs : (prf = sub ++ [(GoLeft, rootHashBytes r)])
+          prfIs = sym (justInj gp)
+          ih : (reconstruct leaf sub = rootHashBytes l)
+          ih = merkleCorrect l i leaf sub gl ps
+      in rewrite prfIs in
+         rewrite reconstructAppend leaf sub [(GoLeft, rootHashBytes r)] in
+         rewrite ih in Refl
+    merkleCorrect {n = S k} (Node l r) i leaf prf gl gp | True | Nothing =
+      absurd gp
+  merkleCorrect {n = S k} (Node l r) i leaf prf gl gp | False with (generateProof r (i `minus` power 2 k)) proof ps
+    merkleCorrect {n = S k} (Node l r) i leaf prf gl gp | False | Just sub =
+      let prfIs : (prf = sub ++ [(GoRight, rootHashBytes l)])
+          prfIs = sym (justInj gp)
+          ih : (reconstruct leaf sub = rootHashBytes r)
+          ih = merkleCorrect r (i `minus` power 2 k) leaf sub gl ps
+      in rewrite prfIs in
+         rewrite reconstructAppend leaf sub [(GoRight, rootHashBytes l)] in
+         rewrite ih in Refl
+    merkleCorrect {n = S k} (Node l r) i leaf prf gl gp | False | Nothing =
+      absurd gp
