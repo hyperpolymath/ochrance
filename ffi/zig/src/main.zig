@@ -9,7 +9,7 @@ const std = @import("std");
 
 // Version information (keep in sync with project)
 const VERSION = "0.1.0";
-const BUILD_INFO = "OCHRANCE built with Zig " ++ @import("builtin").zig_version_string;
+const BUILD_INFO = std.fmt.comptimePrint("OCHRANCE built with Zig {s}", .{@import("builtin").zig_version_string});
 
 /// Thread-local error storage
 threadlocal var last_error: ?[]const u8 = null;
@@ -37,12 +37,12 @@ pub const Result = enum(c_int) {
     null_pointer = 4,
 };
 
-/// Library handle (opaque to prevent direct access)
-pub const Handle = opaque {
-    // Internal state hidden from C
+/// Library handle. Declared as a regular struct so the Zig side can carry
+/// internal state; C only ever receives an opaque `*Handle` pointer and never
+/// inspects the layout, so this remains ABI-safe across the FFI boundary.
+pub const Handle = struct {
     allocator: std.mem.Allocator,
     initialized: bool,
-    // Add your fields here
 };
 
 //==============================================================================
@@ -176,6 +176,48 @@ export fn ochrance_process_array(
 }
 
 //==============================================================================
+// Cryptographic Hash & Signature FFI
+//
+// These functions back the Idris2 %foreign declarations in
+// ochrance-core/Ochrance/FFI/Crypto.idr and src/abi/Ochrance/ABI/Foreign.idr.
+// ABI contracts:
+//   void  blake3_hash   (const u8* data, usize len, u8 out[32])
+//   void  sha256_hash   (const u8* data, usize len, u8 out[32])
+//   void  sha3_256_hash (const u8* data, usize len, u8 out[32])
+//   c_int ed25519_verify(const u8 sig[64], const u8 pk[32],
+//                        const u8* msg, usize msg_len)  -> 1 valid, 0 invalid
+//==============================================================================
+
+/// BLAKE3 digest (32 bytes) of data[0..len], written to out[0..32].
+export fn blake3_hash(data: [*]const u8, len: usize, out: [*]u8) void {
+    std.crypto.hash.Blake3.hash(data[0..len], out[0..32], .{});
+}
+
+/// SHA-256 digest (32 bytes) of data[0..len], written to out[0..32].
+export fn sha256_hash(data: [*]const u8, len: usize, out: [*]u8) void {
+    std.crypto.hash.sha2.Sha256.hash(data[0..len], out[0..32], .{});
+}
+
+/// SHA3-256 digest (32 bytes) of data[0..len], written to out[0..32].
+export fn sha3_256_hash(data: [*]const u8, len: usize, out: [*]u8) void {
+    std.crypto.hash.sha3.Sha3_256.hash(data[0..len], out[0..32], .{});
+}
+
+/// Verify an Ed25519 signature. Returns 1 if valid, 0 otherwise.
+export fn ed25519_verify(
+    sig: [*]const u8,
+    pk: [*]const u8,
+    msg: [*]const u8,
+    msg_len: usize,
+) c_int {
+    const Ed25519 = std.crypto.sign.Ed25519;
+    const signature = Ed25519.Signature.fromBytes(sig[0..64].*);
+    const public_key = Ed25519.PublicKey.fromBytes(pk[0..32].*) catch return 0;
+    signature.verify(msg[0..msg_len], public_key) catch return 0;
+    return 1;
+}
+
+//==============================================================================
 // Error Handling
 //==============================================================================
 
@@ -196,12 +238,12 @@ export fn ochrance_last_error() ?[*:0]const u8 {
 
 /// Get the library version
 export fn ochrance_version() [*:0]const u8 {
-    return VERSION.ptr;
+    return VERSION;
 }
 
 /// Get build information
 export fn ochrance_build_info() [*:0]const u8 {
-    return BUILD_INFO.ptr;
+    return BUILD_INFO;
 }
 
 //==============================================================================
@@ -271,4 +313,68 @@ test "version" {
     const ver = ochrance_version();
     const ver_str = std.mem.span(ver);
     try std.testing.expectEqualStrings(VERSION, ver_str);
+}
+
+test "blake3 known-answer (abc)" {
+    var out: [32]u8 = undefined;
+    const msg = "abc";
+    blake3_hash(msg.ptr, msg.len, &out);
+    const expected = [_]u8{
+        0x64, 0x37, 0xb3, 0xac, 0x38, 0x46, 0x51, 0x33,
+        0xff, 0xb6, 0x3b, 0x75, 0x27, 0x3a, 0x8d, 0xb5,
+        0x48, 0xc5, 0x58, 0x46, 0x5d, 0x79, 0xdb, 0x03,
+        0xfd, 0x35, 0x9c, 0x6c, 0xd5, 0xbd, 0x9d, 0x85,
+    };
+    try std.testing.expectEqualSlices(u8, &expected, &out);
+}
+
+test "sha256 known-answer (abc)" {
+    var out: [32]u8 = undefined;
+    const msg = "abc";
+    sha256_hash(msg.ptr, msg.len, &out);
+    const expected = [_]u8{
+        0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea,
+        0x41, 0x41, 0x40, 0xde, 0x5d, 0xae, 0x22, 0x23,
+        0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c,
+        0xb4, 0x10, 0xff, 0x61, 0xf2, 0x00, 0x15, 0xad,
+    };
+    try std.testing.expectEqualSlices(u8, &expected, &out);
+}
+
+test "sha3-256 known-answer (abc)" {
+    var out: [32]u8 = undefined;
+    const msg = "abc";
+    sha3_256_hash(msg.ptr, msg.len, &out);
+    const expected = [_]u8{
+        0x3a, 0x98, 0x5d, 0xa7, 0x4f, 0xe2, 0x25, 0xb2,
+        0x04, 0x5c, 0x17, 0x2d, 0x6b, 0xd3, 0x90, 0xbd,
+        0x85, 0x5f, 0x08, 0x6e, 0x3e, 0x9d, 0x52, 0x5b,
+        0x46, 0xbf, 0xe2, 0x45, 0x11, 0x43, 0x15, 0x32,
+    };
+    try std.testing.expectEqualSlices(u8, &expected, &out);
+}
+
+test "ed25519 verify (RFC 8032 test 1)" {
+    const pk = [_]u8{
+        0xd7, 0x5a, 0x98, 0x01, 0x82, 0xb1, 0x0a, 0xb7,
+        0xd5, 0x4b, 0xfe, 0xd3, 0xc9, 0x64, 0x07, 0x3a,
+        0x0e, 0xe1, 0x72, 0xf3, 0xda, 0xa6, 0x23, 0x25,
+        0xaf, 0x02, 0x1a, 0x68, 0xf7, 0x07, 0x51, 0x1a,
+    };
+    const sig = [_]u8{
+        0xe5, 0x56, 0x43, 0x00, 0xc3, 0x60, 0xac, 0x72,
+        0x90, 0x86, 0xe2, 0xcc, 0x80, 0x6e, 0x82, 0x8a,
+        0x84, 0x87, 0x7f, 0x1e, 0xb8, 0xe5, 0xd9, 0x74,
+        0xd8, 0x73, 0xe0, 0x65, 0x22, 0x49, 0x01, 0x55,
+        0x5f, 0xb8, 0x82, 0x15, 0x90, 0xa3, 0x3b, 0xac,
+        0xc6, 0x1e, 0x39, 0x70, 0x1c, 0xf9, 0xb4, 0x6b,
+        0xd2, 0x5b, 0xf5, 0xf0, 0x59, 0x5b, 0xbe, 0x24,
+        0x65, 0x51, 0x41, 0x43, 0x8e, 0x7a, 0x10, 0x0b,
+    };
+    const msg = [_]u8{};
+    try std.testing.expectEqual(@as(c_int, 1), ed25519_verify(&sig, &pk, &msg, msg.len));
+    // A corrupted signature must be rejected.
+    var bad = sig;
+    bad[0] ^= 0xff;
+    try std.testing.expectEqual(@as(c_int, 0), ed25519_verify(&bad, &pk, &msg, msg.len));
 }

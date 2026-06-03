@@ -17,16 +17,18 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    lib.linkLibC(); // std.heap.c_allocator + C ABI
     b.installArtifact(lib);
 
-    // Also create a shared library version
-    const shared_lib = b.addStaticLibrary(.{
-        .name = "ochrance-shared",
+    // Shared library (libochrance.so) — this is what the Idris2 %foreign
+    // declarations link against at runtime (C:blake3_hash,libochrance ...).
+    const shared_lib = b.addSharedLibrary(.{
+        .name = "ochrance",
         .root_source_file = .{ .cwd_relative = "src/main.zig" },
         .target = target,
         .optimize = optimize,
     });
-    shared_lib.linkage = .dynamic;
+    shared_lib.linkLibC();
     b.installArtifact(shared_lib);
 
     // Tests
@@ -35,6 +37,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    tests.linkLibC();
 
     const run_tests = b.addRunArtifact(tests);
     const test_step = b.step("test", "Run unit tests");
