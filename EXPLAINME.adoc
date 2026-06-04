@@ -50,12 +50,11 @@ Also integrates with ECHIDNA for neural proof synthesis — FFI calls to libechi
 | `ochrance-core/Framework/Proof.idr` | Proof witness types; generic proof structure for all subsystems
 | `ochrance-core/Framework/Error.idr` | Error taxonomy: q/* (query), p/* (proof), z/* (zone/system)
 | `ochrance-core/Framework/FFI/Echidna.idr` | FFI to ECHIDNA neural prover (via Zig C ABI)
-| `modules/filesystem/Types.idr` | Filesystem types: FSState, Block, FSSnapshot with dependent proofs
-| `modules/filesystem/Merkle.idr` | Verified Merkle tree: size-indexed with compile-time structure proofs (placeholder XOR hashes)
-| `modules/filesystem/Verify.idr` | Verification logic: block hashes, tree integrity, attestation signatures
-| `modules/filesystem/Repair.idr` | Linear type repair: repair operations consume old state (Quantity 1)
-| `ochrance.ipkg` | Package definition for core library
-| `ochrance-fs.ipkg` | Package definition for filesystem module
+| `ochrance-core/Ochrance/Filesystem/Types.idr` | Filesystem types: FSState, Block, FSSnapshot with dependent proofs
+| `ochrance-core/Ochrance/Filesystem/Merkle.idr` | Verified Merkle tree: height-indexed with compile-time structure proofs and the `merkleCorrect` inclusion-soundness theorem (placeholder XOR hashes for the pure path)
+| `ochrance-core/Ochrance/Filesystem/Verify.idr` | Verification logic: block hashes, tree integrity, attestation signatures
+| `ochrance-core/Ochrance/Filesystem/Repair.idr` | Linear type repair: repair operations consume old state (Quantity 1)
+| `ochrance.ipkg` | Package definition for the core library (includes the filesystem subsystem)
 |===
 
 == Testing Critical Paths
