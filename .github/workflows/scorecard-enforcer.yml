@@ -15,6 +15,7 @@ permissions:
 jobs:
   scorecard:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       security-events: write
       id-token: write  # For OIDC
@@ -38,6 +39,7 @@ jobs:
   # Check specific high-priority items (separate job, allowed to have run: steps)
   check-critical:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 

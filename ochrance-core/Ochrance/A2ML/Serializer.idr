@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: MPL-2.0
+-- Copyright (c) Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
 ||| SPDX-License-Identifier: MPL-2.0
 |||
 ||| Ochrance.A2ML.Serializer - Serialize manifests back to A2ML text
