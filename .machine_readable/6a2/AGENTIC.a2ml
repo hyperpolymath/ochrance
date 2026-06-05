@@ -3,10 +3,9 @@
 #
 # AGENTIC.a2ml — AI agent constraints and capabilities
 # Defines what AI agents can and cannot do in this repository.
-
 [metadata]
 version = "0.1.0"
-last-updated = "2026-03-16"
+last-updated = "2026-06-05"
 
 [agent-permissions]
 can-edit-source = true
@@ -17,8 +16,16 @@ can-create-files = true
 
 [agent-constraints]
 # What AI agents must NOT do:
-# - Never use banned language patterns (believe_me, unsafeCoerce, etc.)
+# - Never use banned proof escapes (believe_me, assert_total, postulate, unsafePerformIO, holes) on proof symbols
+# - Never weaken %default total, nor introduce `covering` / `partial` on verification code
 # - Never commit secrets or credentials
 # - Never use banned languages (TypeScript, Python, Go, etc.)
-# - Never place state files in repository root (must be in .machine_readable/)
-# - Never use AGPL license (use MPL-2.0)
+# - Never place state/meta files in repository root (must live under .machine_readable/)
+# - Never use AGPL (license is MPL-2.0)
+
+[agent-workflow]
+# How AI agents should work here:
+proof-campaign = "resume from docs/PROOFS.adoc — the authoritative, dependency-sorted plan; it survives context compaction"
+post-migration = "on return from the svalinn → Ephapax track, follow docs/AFTER-MIGRATION.adoc before resuming"
+verification-gate = "idris2 --build ochrance.ipkg must stay clean and fully total"
+model-guidance = "Opus for proof discovery / structural walls; Sonnet for mechanisation, refactors, tests; Haiku for grunt sweeps"

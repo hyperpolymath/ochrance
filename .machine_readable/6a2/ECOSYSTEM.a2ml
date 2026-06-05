@@ -1,10 +1,28 @@
 # SPDX-License-Identifier: MPL-2.0
+# Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
+#
 # ECOSYSTEM.a2ml — Ecosystem position
-# Converted from ECOSYSTEM.scm on 2026-03-15
-
 [metadata]
 project = "ochrance"
 ecosystem = "hyperpolymath"
+last-updated = "2026-06-05"
 
 [position]
 type = "component"
+role = """Neurosymbolic filesystem-integrity verifier — the receipt/attestation layer for accountable state transitions."""
+
+[related-projects]
+projects = [
+  "echidna — Rust/Julia neurosymbolic prover (provides libechidna.so); Ochránce adds Idris2 as a backend",
+  "idris2-echidna — Idris2 prover abstraction layer",
+  "proven — Idris2 formally verified library",
+  "ochrance-framework — architecture + docs; its duplicate core is retired (D1)",
+  "svalinn — estate sibling, edge verification gateway; migrating ReScript → Ephapax (D3)",
+  "valence-shell — consumes Ochránce receipts for accountable state transitions (see integrations/valence-shell-bridge.a2ml)",
+  "echo-types — semantics of the residue/loss those transitions expose",
+  "boj-server — SSG/build host (casket engine); ANCHOR parent (see anchors/ANCHOR.a2ml)",
+]
+
+[integrations]
+# detail in .machine_readable/integrations/*.a2ml
+declared = [ "proven", "valence-shell-bridge", "verisimdb", "vexometer", "feedback-o-tron" ]
