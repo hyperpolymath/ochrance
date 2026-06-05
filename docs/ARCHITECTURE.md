@@ -100,6 +100,18 @@ The stack is loosely coupled: each layer is independently useful, but together t
 provide a complete story from "operations are reversible" through "the shell proves it"
 to "the filesystem is verified."
 
+### See also: the receipt / residue reading
+
+A complementary, **documentation-only** reading of this stack treats ochrance as
+the *receipt layer* for valence-shell's accountable state transitions, with
+[echo-types](https://github.com/hyperpolymath/echo-types) supplying the
+*semantics of the residue/loss* those transitions expose (recoverable /
+constrained / lossy / obliterative). That bridge is **not mechanised** and makes
+no cryptographic-integrity, GDPR, or end-to-end-correctness claim. See
+[`VALENCE_SHELL_BRIDGE.adoc`](VALENCE_SHELL_BRIDGE.adoc) and its machine-readable
+companion `.machine_readable/integrations/valence-shell-bridge.a2ml` for the trust boundaries
+and caveats.
+
 ---
 
 ## P2: Reposystem Boundary
