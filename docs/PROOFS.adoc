@@ -187,6 +187,10 @@ those holes until closed. Track upstream.
 DISCHARGES: svalinn security issue #13 (19 Critical/High panic-attack findings —
 `decodeJwt()` without `jwtVerify()`, `JSON.parseExn`) is addressed structurally by
 this migration (verified JWT + typed deserialisation), not by patching ReScript.
++
+RE-ENTRY: the outbound charter now lives at
+`svalinn/docs/ephapax-migration/HANDOFF.adoc`; when this track *returns*, read
+`docs/AFTER-MIGRATION.adoc` (the round-trip closure) before resuming the campaign.
 
 === ochrance-framework — retire core, harvest Interface, keep docs  [model: Sonnet]
 
