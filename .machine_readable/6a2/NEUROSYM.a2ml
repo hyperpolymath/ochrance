@@ -3,12 +3,35 @@
 #
 # NEUROSYM.a2ml — Neurosymbolic integration metadata
 # Configuration for Hypatia scanning and symbolic reasoning.
-
 [metadata]
 version = "0.1.0"
-last-updated = "2026-03-16"
+last-updated = "2026-06-05"
 
 [hypatia-config]
 scan-enabled = true
 scan-depth = "standard"
 report-format = "logtalk"
+
+[symbolic]
+prover = "Idris2 (dependent types)"
+neural-backend = "ECHIDNA (Rust/Julia) — FFI stubbed, integration pending"
+abstraction = "idris2-echidna prover layer (planned 13th ECHIDNA backend)"
+
+[proof-obligations]
+# discharged — machine-checked, axiom-free
+discharged = [
+  "merkleCorrectWith — combiner-generic inclusion soundness",
+  "verifyProofReconstructsWith — verify ≡ root == reconstruct",
+  "roundtripManifest — grammar invertibility over the reference token codec",
+  "progressive assurance (SatisfiesMinimum / attestedSatisfiesLax)",
+]
+# open — see docs/PROOFS.adoc Stages 1–4
+open = [
+  "buildMerkleTree correctness + IO↔pure bridge to the production crypto path",
+  "CollisionResistant h + merkleBinding (D2)",
+  "Verify / Validator soundness; repair correctness (L3 linear); Merkle completeness",
+]
+
+[honest-bounds]
+# boundaries by design — documented, never faked
+notes = """The production parse∘lex∘serialize round-trip rests on primitive String operations (pack/unpack/parseInteger) with no equational theory; the honest guarantee is roundtripManifest over a reference token codec, complemented by a runtime round-trip property. The residual root==root Bool step in merkleCorrect is propositional digest equality — the strongest honest statement without an unsafe reflexivity axiom."""

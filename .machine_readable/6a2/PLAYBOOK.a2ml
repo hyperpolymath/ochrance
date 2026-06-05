@@ -2,22 +2,27 @@
 # Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
 #
 # PLAYBOOK.a2ml — Operational playbook
-# Runbooks, incident response, deployment procedures.
-
+# Runbooks, build/verify procedures, incident response.
 [metadata]
 version = "0.1.0"
-last-updated = "2026-03-16"
+last-updated = "2026-06-05"
 
-[deployment]
-# method = "gitops"
-# target = "container"
+[build-and-verify]
+typecheck = "idris2 --build ochrance.ipkg   # must be clean and fully total"
+single-file = "idris2 --check ochrance-core/Ochrance/A2ML/Lexer.idr"
+ffi = "cd ffi/zig && zig build && zig build test   # BLAKE3 / SHA-256 / SHA3-256 / Ed25519 KATs (Zig 0.11.0)"
+suites = "A2ML parser, property, integration, and tests/e2e_test.sh"
 
 [incident-response]
-# 1. Check .machine_readable/STATE.a2ml for current status
-# 2. Review recent commits and CI results
-# 3. Run just validate to check compliance
+steps = [
+  "Check .machine_readable/6a2/STATE.a2ml for current status, blockers, and next actions",
+  "Review recent commits and CI results on main",
+  "Re-run the proof build (idris2 --build ochrance.ipkg) and the affected suite",
+]
 
 [release-process]
-# 1. Update version in STATE.a2ml, META.a2ml
-# 2. Run just quality (format, lint, test)
-# 3. Tag and push
+steps = [
+  "Update version + last-updated in STATE.a2ml and META.a2ml",
+  "Ensure CI is green (totality gate, suites, Zig FFI build+test, CodeQL, RSR linters)",
+  "Tag and push",
+]
