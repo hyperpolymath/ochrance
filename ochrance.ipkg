@@ -14,9 +14,11 @@ modules = Ochrance.A2ML.Types
         , Ochrance.A2ML.Parser
         , Ochrance.A2ML.Validator
         , Ochrance.A2ML.Serializer
+        , Ochrance.A2ML.Roundtrip
         , Ochrance.Framework.Interface
         , Ochrance.Framework.Proof
         , Ochrance.Framework.Error
+        , Ochrance.Framework.Progressive
         , Ochrance.FFI.Crypto
         , Ochrance.Util.Hex
         , Ochrance.Filesystem.Types

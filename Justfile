@@ -24,10 +24,6 @@ check-versions:
 build-core:
     idris2 --build ochrance.ipkg
 
-# Build filesystem module
-build-fs:
-    idris2 --build ochrance-fs.ipkg
-
 # Build ABI layer
 build-abi:
     idris2 --build ochrance-abi.ipkg
@@ -37,12 +33,11 @@ build-ffi:
     cd ffi/zig && zig build
 
 # Build all components
-build: build-core build-fs build-abi build-ffi
+build: build-core build-abi build-ffi
 
 # Run all tests (builds core, installs, then runs test suites)
 test: build-core
     idris2 --install ochrance.ipkg
-    idris2 --install ochrance-fs.ipkg
     idris2 --build tests/A2ML/tests.ipkg
     tests/A2ML/build/exec/a2ml-tests
     idris2 --build tests/property/tests.ipkg
@@ -59,7 +54,6 @@ test-a2ml: build-core
 # Run integration tests only
 test-integration: build-core
     idris2 --install ochrance.ipkg
-    idris2 --install ochrance-fs.ipkg
     idris2 --build tests/integration/tests.ipkg
     tests/integration/build/exec/integration-tests
 
@@ -89,10 +83,6 @@ check FILE:
 repl:
     idris2 --repl ochrance.ipkg
 
-# Open REPL for filesystem module
-repl-fs:
-    idris2 --repl ochrance-fs.ipkg
-
 # Find type at position in file
 type-at FILE LINE COL:
     idris2 --find-type-at {{FILE}}:{{LINE}}:{{COL}}
@@ -100,7 +90,6 @@ type-at FILE LINE COL:
 # Install packages
 install:
     idris2 --install ochrance.ipkg
-    idris2 --install ochrance-fs.ipkg
     idris2 --install ochrance-abi.ipkg
 
 # Install OSTree hooks
@@ -126,11 +115,11 @@ format:
 stats:
     @echo "=== Ochránce Statistics ==="
     @echo "Idris2 modules:"
-    @find ochrance-core modules -name "*.idr" | wc -l
+    @find ochrance-core -name "*.idr" | wc -l
     @echo "Total lines of code:"
-    @find ochrance-core modules -name "*.idr" -exec cat {} \; | wc -l
+    @find ochrance-core -name "*.idr" -exec cat {} \; | wc -l
     @echo "Functions marked total:"
-    @grep -r 'total' ochrance-core modules | grep -v '%default' | wc -l
+    @grep -r 'total' ochrance-core | grep -v '%default' | wc -l
 
 # Run panic-attacker pre-commit scan
 assail:
