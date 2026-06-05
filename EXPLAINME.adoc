@@ -28,7 +28,7 @@ Three components orchestrate this: A2ML parser/validator (parses filesystem mani
 
 **How verified**: The Merkle tree is defined as a size-indexed binary tree: `MerkleTree : (size : Nat) → Type`. At compile time, Idris2 verifies that all leaf nodes are at depth `log2(size)`. The tree operations (leaf insertion, hash computation, proof generation) take dependent proofs that structure is maintained. README (§Architecture) claims "Verified Merkle trees — Size-indexed binary trees with compile-time structure proofs." This is proven by the type signature itself: if you try to construct a tree of size 8 with only 7 leaves, the type checker rejects it because the dependent type `MerkleTree 8` requires exactly 8 leaves.
 
-**Caveat**: The placeholder hash functions in `Merkle.idr` use XOR, not cryptographic hashes (BLAKE3/SHA-256). This is noted in the CLAUDE.md as a critical TODO. The structure proofs are valid but cryptographic strength is absent.
+**Caveat**: The size-indexed *structure* proofs are independent of hash strength. Real hashing now exists — the Zig FFI implements BLAKE3/SHA-256/SHA3-256 (`ffi/zig/src/main.zig`, with known-answer-vector tests) and the IO Merkle path calls `hashPairBlake3` — but a pure XOR combiner (`hashPairStub`) remains for totality/offline testing, and `libochrance.so` must be built and linked for the cryptographic path to be live. Until the stub paths are removed and the FFI is wired into the verification flow, the structure proofs hold but cryptographic integrity is not yet claimed.
 
 == Dogfooded Across The Account
 
@@ -68,8 +68,8 @@ Also integrates with ECHIDNA for neural proof synthesis — FFI calls to libechi
 
 == Known Limitations & TODOs
 
-* **Hashes**: Currently XOR (placeholder). Must replace with BLAKE3/SHA-256 via Zig FFI.
-* **Attestation**: Cryptographic signature verification not yet integrated (planned).
+* **Hashes**: BLAKE3/SHA-256/SHA3-256 are now implemented in the Zig FFI (`ffi/zig/src/main.zig`, tested via `zig build test`). Remaining: remove the Idris-side XOR/zero stub fallbacks (`hashPairStub`/`blake3Stub`) and build+link `libochrance.so` into the verification flow before claiming cryptographic integrity.
+* **Attestation**: Ed25519 verification is implemented (Zig FFI + `validateManifestIO`). Remaining: a trust-root / key-management story and end-to-end integration before claiming full attestation.
 * **Linear repair**: Idris2 linear types framework incomplete for full use-after-repair prevention (ongoing research).
 
 == Questions?

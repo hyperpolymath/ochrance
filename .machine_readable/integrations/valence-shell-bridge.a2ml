@@ -1,0 +1,101 @@
+# SPDX-License-Identifier: MPL-2.0
+# Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
+#
+# Ochrance <-> Valence Shell <-> Echo Types — cross-repo bridge note.
+# Machine-readable companion to docs/VALENCE_SHELL_BRIDGE.adoc.
+# This is an ORIENTATION note for agents. It records a documentation-only
+# bridge. Nothing here is mechanised, shipped, or trusted.
+
+[bridge]
+name = "valence-shell-bridge"
+type = "cross-repo-documentation-bridge"
+human-doc = "docs/VALENCE_SHELL_BRIDGE.adoc"
+created = "2026-06-02"
+thesis = "Ochrance is the receipt layer for Valence Shell's accountable state transitions; Echo Types is the semantics of the residue/loss those transitions expose."
+
+# Required status tags. ALL hold simultaneously today.
+[status]
+state = "documentation-bridge"
+mechanised = "not-mechanised"
+production-trust = "not-production-trust"
+cryptographic-integrity = "no-cryptographic-integrity-claim-until-hash-and-attestation-gaps-close"
+tags = [
+  "documentation-bridge",
+  "not-mechanised",
+  "not-production-trust",
+  "no-cryptographic-integrity-claim-until-hash-and-attestation-gaps-close",
+]
+
+[participants]
+valence-shell = "https://github.com/hyperpolymath/valence-shell"
+echo-types    = "https://github.com/hyperpolymath/echo-types"
+ochrance      = "https://github.com/hyperpolymath/ochrance"
+
+[roles]
+valence-shell = "operational shell: executes actions, tracks history, undo/redo/checkpoint/restore/diff/replay, RMR/RMO vocabulary"
+echo-types    = "semantic theory of structured loss: Echo f y := Sigma (x : A), (f x = y) — the proof-relevant fibre/residue over an observed output"
+ochrance      = "evidence/receipt substrate: A2ML manifests, Merkle-backed state commitments, repair witnesses, future attestation surfaces"
+
+# The four trust boundaries. Each layer is sound only within its own boundary.
+[trust-boundaries]
+valence-shell-proofs = "concern modelled shell operations (abstract model); Lean->Rust correspondence is property-tested, not mechanised"
+echo-types-scope     = "classifies recoverable / constrained / lossy / obliterative information; it is a semantics, not a runtime or evidence store"
+ochrance-receipts    = "can attest to concrete filesystem state evidence (Merkle commitments, A2ML manifests) once the hash/attestation gaps close"
+end-to-end           = "none of this currently proves Valence Shell implementation correctness end-to-end"
+
+# Ochrance integrity caveats. Load-bearing; carry into any future receipt.
+[caveats]
+hashes      = "Zig std.crypto primitives (BLAKE3/SHA-256/SHA3-256/Ed25519) are now implemented in ffi/zig/src/main.zig; still no cryptographic filesystem-integrity claim while Idris-side XOR/zero stub fallbacks remain reachable and libochrance.so is not yet built and linked into the verification flow"
+attestation = "no full attestation until Ed25519 signature verification is integrated end-to-end with a trust-root/key-management story (stub + signature-skipping path still present)"
+linear-repair = "no complete linear repair until that work is actually complete; linear quantities are typed but repair bodies are stubbed/elided"
+
+# Echo Types residue classification used as bridge vocabulary.
+# DESIGN CORRESPONDENCE ONLY — a human reading, not a mechanised classifier.
+[residue-classes]
+recoverable  = "reversible map / section exists; RMR-class ops with working undo/redo"
+constrained  = "recoverable only with retained side-evidence (checkpoint/history/metadata)"
+lossy        = "genuine collapse with non-trivial observable residue; not invertible"
+obliterative = "maximal collapse; Echo Types proves NO section exists (no-section family); RMO-class irreversible erasure"
+
+# Future event shape. DESIGN SKETCH ONLY — no such type exists in this repo.
+[event-shape]
+name = "ValenceShellReceipt"
+implemented = false
+implementation-status = "design-only — do not implement until gating conditions are met"
+fields = [
+  "event_id",
+  "command",
+  "pre_state_commitment",
+  "post_state_commitment",
+  "valence_proof_ref",
+  "echo_residue_class",
+  "ochrance_manifest_ref",
+  "merkle_root",
+  "attestation_ref",
+  "trust_boundary",
+  "status",
+]
+
+# All of these must hold before ANY code is written for this bridge.
+[gating]
+real-hashes        = "Ochrance uses real cryptographic hashes end-to-end; no XOR/zero stub path reachable"
+real-attestation   = "Ochrance attestation does real Ed25519 verification with a defined trust-root/key-management story"
+real-repair        = "Ochrance linear repair implemented, not stubbed"
+valence-proof-ref  = "Valence Shell exposes a stable referenceable proof/operation handle with its modelled-vs-implementation boundary stated"
+residue-procedure  = "a residue-classification procedure exists beyond a human reading, if echo_residue_class is to be machine-trusted"
+
+# Explicit non-claims. This bridge must NOT be cited as asserting any of these.
+[non-claims]
+ochrance-proves-valence  = false   # Ochrance does NOT prove Valence Shell correct
+echo-proves-ochrance     = false   # Echo Types does NOT prove Ochrance correct
+rmo-undoable             = false   # RMO is NOT undoable; obliterative = no section
+gdpr-compliance          = false   # no GDPR claim until RMO is implemented AND Ochrance evidence chain is closed
+echidna-integration      = false   # no Echidna claim; no concrete tested integration in this bridge
+
+[cross-references]
+architecture        = "docs/ARCHITECTURE.md"          # existing Reversibility Stack framing this bridge refines
+explainme           = "EXPLAINME.adoc"                 # same hash/attestation/repair caveats, honesty pass
+roadmap             = "ROADMAP.adoc"                   # open Phase-1 items the gating tracks
+crypto-ffi          = "ochrance-core/Ochrance/FFI/Crypto.idr"
+merkle              = "modules/Ochrance/Filesystem/Merkle.idr"
+repair              = "modules/Ochrance/Filesystem/Repair.idr"

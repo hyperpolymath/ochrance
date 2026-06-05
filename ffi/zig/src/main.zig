@@ -9,7 +9,7 @@ const std = @import("std");
 
 // Version information (keep in sync with project)
 const VERSION = "0.1.0";
-const BUILD_INFO = std.fmt.comptimePrint("OCHRANCE built with Zig {s}", .{@import("builtin").zig_version_string});
+const BUILD_INFO = "OCHRANCE built with Zig " ++ @import("builtin").zig_version_string;
 
 /// Thread-local error storage
 threadlocal var last_error: ?[]const u8 = null;
@@ -37,9 +37,9 @@ pub const Result = enum(c_int) {
     null_pointer = 4,
 };
 
-/// Library handle. Declared as a regular struct so the Zig side can carry
-/// internal state; C only ever receives an opaque `*Handle` pointer and never
-/// inspects the layout, so this remains ABI-safe across the FFI boundary.
+/// Library handle. Only ever crosses the C ABI boundary as an opaque
+/// pointer (`?*Handle`); the fields below are private to the Zig side.
+/// (A Zig `opaque {}` type cannot carry fields, so this is a struct.)
 pub const Handle = struct {
     allocator: std.mem.Allocator,
     initialized: bool,
@@ -176,48 +176,6 @@ export fn ochrance_process_array(
 }
 
 //==============================================================================
-// Cryptographic Hash & Signature FFI
-//
-// These functions back the Idris2 %foreign declarations in
-// ochrance-core/Ochrance/FFI/Crypto.idr and src/abi/Ochrance/ABI/Foreign.idr.
-// ABI contracts:
-//   void  blake3_hash   (const u8* data, usize len, u8 out[32])
-//   void  sha256_hash   (const u8* data, usize len, u8 out[32])
-//   void  sha3_256_hash (const u8* data, usize len, u8 out[32])
-//   c_int ed25519_verify(const u8 sig[64], const u8 pk[32],
-//                        const u8* msg, usize msg_len)  -> 1 valid, 0 invalid
-//==============================================================================
-
-/// BLAKE3 digest (32 bytes) of data[0..len], written to out[0..32].
-export fn blake3_hash(data: [*]const u8, len: usize, out: [*]u8) void {
-    std.crypto.hash.Blake3.hash(data[0..len], out[0..32], .{});
-}
-
-/// SHA-256 digest (32 bytes) of data[0..len], written to out[0..32].
-export fn sha256_hash(data: [*]const u8, len: usize, out: [*]u8) void {
-    std.crypto.hash.sha2.Sha256.hash(data[0..len], out[0..32], .{});
-}
-
-/// SHA3-256 digest (32 bytes) of data[0..len], written to out[0..32].
-export fn sha3_256_hash(data: [*]const u8, len: usize, out: [*]u8) void {
-    std.crypto.hash.sha3.Sha3_256.hash(data[0..len], out[0..32], .{});
-}
-
-/// Verify an Ed25519 signature. Returns 1 if valid, 0 otherwise.
-export fn ed25519_verify(
-    sig: [*]const u8,
-    pk: [*]const u8,
-    msg: [*]const u8,
-    msg_len: usize,
-) c_int {
-    const Ed25519 = std.crypto.sign.Ed25519;
-    const signature = Ed25519.Signature.fromBytes(sig[0..64].*);
-    const public_key = Ed25519.PublicKey.fromBytes(pk[0..32].*) catch return 0;
-    signature.verify(msg[0..msg_len], public_key) catch return 0;
-    return 1;
-}
-
-//==============================================================================
 // Error Handling
 //==============================================================================
 
@@ -291,6 +249,56 @@ export fn ochrance_is_initialized(handle: ?*Handle) u32 {
 }
 
 //==============================================================================
+// Cryptographic Hash + Signature FFI
+//
+// C ABI — must match the %foreign declarations in
+// ochrance-core/Ochrance/FFI/Crypto.idr:
+//   void blake3_hash   (const uint8_t* data, size_t len, uint8_t out[32]);
+//   void sha256_hash   (const uint8_t* data, size_t len, uint8_t out[32]);
+//   void sha3_256_hash (const uint8_t* data, size_t len, uint8_t out[32]);
+//   int  ed25519_verify(const uint8_t sig[64], const uint8_t pk[32],
+//                       const uint8_t* msg, size_t msg_len);  // 1=valid, 0=invalid
+//
+// Backed by Zig's audited std.crypto (Zig 0.11.0). These replace the XOR/zero
+// placeholder hashes; see ROADMAP Phase 1 and docs/VALENCE_SHELL_BRIDGE.adoc,
+// which gate cryptographic-integrity claims on closing exactly this gap.
+//==============================================================================
+
+const Ed25519 = std.crypto.sign.Ed25519;
+
+/// BLAKE3 → 32-byte digest.
+export fn blake3_hash(data: [*]const u8, len: usize, out: [*]u8) void {
+    std.crypto.hash.Blake3.hash(data[0..len], out[0..32], .{});
+}
+
+/// SHA-256 → 32-byte digest.
+export fn sha256_hash(data: [*]const u8, len: usize, out: [*]u8) void {
+    std.crypto.hash.sha2.Sha256.hash(data[0..len], out[0..32], .{});
+}
+
+/// SHA3-256 → 32-byte digest.
+export fn sha3_256_hash(data: [*]const u8, len: usize, out: [*]u8) void {
+    std.crypto.hash.sha3.Sha3_256.hash(data[0..len], out[0..32], .{});
+}
+
+/// Verify an Ed25519 signature over `msg`.
+/// Returns 1 if valid, 0 otherwise (including a malformed public key or
+/// signature). Never traps on attacker-controlled input.
+export fn ed25519_verify(
+    sig: [*]const u8,
+    pk: [*]const u8,
+    msg: [*]const u8,
+    msg_len: usize,
+) c_int {
+    const sig_bytes: [64]u8 = sig[0..64].*;
+    const pk_bytes: [32]u8 = pk[0..32].*;
+    const public_key = Ed25519.PublicKey.fromBytes(pk_bytes) catch return 0;
+    const signature = Ed25519.Signature.fromBytes(sig_bytes);
+    signature.verify(msg[0..msg_len], public_key) catch return 0;
+    return 1;
+}
+
+//==============================================================================
 // Tests
 //==============================================================================
 
@@ -315,66 +323,75 @@ test "version" {
     try std.testing.expectEqualStrings(VERSION, ver_str);
 }
 
-test "blake3 known-answer (abc)" {
-    var out: [32]u8 = undefined;
-    const msg = "abc";
-    blake3_hash(msg.ptr, msg.len, &out);
-    const expected = [_]u8{
-        0x64, 0x37, 0xb3, 0xac, 0x38, 0x46, 0x51, 0x33,
-        0xff, 0xb6, 0x3b, 0x75, 0x27, 0x3a, 0x8d, 0xb5,
-        0x48, 0xc5, 0x58, 0x46, 0x5d, 0x79, 0xdb, 0x03,
-        0xfd, 0x35, 0x9c, 0x6c, 0xd5, 0xbd, 0x9d, 0x85,
-    };
+//==============================================================================
+// Cryptographic Tests — known-answer vectors + Ed25519 round-trip.
+// These call the exported C-ABI functions directly, so they validate the FFI
+// surface, not just the underlying std.crypto.
+//==============================================================================
+
+fn expectDigest(out: [32]u8, comptime hex: []const u8) !void {
+    var expected: [32]u8 = undefined;
+    _ = try std.fmt.hexToBytes(&expected, hex);
     try std.testing.expectEqualSlices(u8, &expected, &out);
 }
 
-test "sha256 known-answer (abc)" {
+test "blake3_hash known-answer vectors" {
     var out: [32]u8 = undefined;
-    const msg = "abc";
-    sha256_hash(msg.ptr, msg.len, &out);
-    const expected = [_]u8{
-        0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea,
-        0x41, 0x41, 0x40, 0xde, 0x5d, 0xae, 0x22, 0x23,
-        0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c,
-        0xb4, 0x10, 0xff, 0x61, 0xf2, 0x00, 0x15, 0xad,
-    };
-    try std.testing.expectEqualSlices(u8, &expected, &out);
+    const empty: []const u8 = "";
+    blake3_hash(empty.ptr, empty.len, &out);
+    try expectDigest(out, "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262");
+    const abc: []const u8 = "abc";
+    blake3_hash(abc.ptr, abc.len, &out);
+    try expectDigest(out, "6437b3ac38465133ffb63b75273a8db548c558465d79db03fd359c6cd5bd9d85");
 }
 
-test "sha3-256 known-answer (abc)" {
+test "sha256_hash known-answer vectors" {
     var out: [32]u8 = undefined;
-    const msg = "abc";
-    sha3_256_hash(msg.ptr, msg.len, &out);
-    const expected = [_]u8{
-        0x3a, 0x98, 0x5d, 0xa7, 0x4f, 0xe2, 0x25, 0xb2,
-        0x04, 0x5c, 0x17, 0x2d, 0x6b, 0xd3, 0x90, 0xbd,
-        0x85, 0x5f, 0x08, 0x6e, 0x3e, 0x9d, 0x52, 0x5b,
-        0x46, 0xbf, 0xe2, 0x45, 0x11, 0x43, 0x15, 0x32,
-    };
-    try std.testing.expectEqualSlices(u8, &expected, &out);
+    const empty: []const u8 = "";
+    sha256_hash(empty.ptr, empty.len, &out);
+    try expectDigest(out, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+    const abc: []const u8 = "abc";
+    sha256_hash(abc.ptr, abc.len, &out);
+    try expectDigest(out, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
 }
 
-test "ed25519 verify (RFC 8032 test 1)" {
-    const pk = [_]u8{
-        0xd7, 0x5a, 0x98, 0x01, 0x82, 0xb1, 0x0a, 0xb7,
-        0xd5, 0x4b, 0xfe, 0xd3, 0xc9, 0x64, 0x07, 0x3a,
-        0x0e, 0xe1, 0x72, 0xf3, 0xda, 0xa6, 0x23, 0x25,
-        0xaf, 0x02, 0x1a, 0x68, 0xf7, 0x07, 0x51, 0x1a,
-    };
-    const sig = [_]u8{
-        0xe5, 0x56, 0x43, 0x00, 0xc3, 0x60, 0xac, 0x72,
-        0x90, 0x86, 0xe2, 0xcc, 0x80, 0x6e, 0x82, 0x8a,
-        0x84, 0x87, 0x7f, 0x1e, 0xb8, 0xe5, 0xd9, 0x74,
-        0xd8, 0x73, 0xe0, 0x65, 0x22, 0x49, 0x01, 0x55,
-        0x5f, 0xb8, 0x82, 0x15, 0x90, 0xa3, 0x3b, 0xac,
-        0xc6, 0x1e, 0x39, 0x70, 0x1c, 0xf9, 0xb4, 0x6b,
-        0xd2, 0x5b, 0xf5, 0xf0, 0x59, 0x5b, 0xbe, 0x24,
-        0x65, 0x51, 0x41, 0x43, 0x8e, 0x7a, 0x10, 0x0b,
-    };
-    const msg = [_]u8{};
-    try std.testing.expectEqual(@as(c_int, 1), ed25519_verify(&sig, &pk, &msg, msg.len));
-    // A corrupted signature must be rejected.
-    var bad = sig;
-    bad[0] ^= 0xff;
-    try std.testing.expectEqual(@as(c_int, 0), ed25519_verify(&bad, &pk, &msg, msg.len));
+test "sha3_256_hash known-answer vectors" {
+    var out: [32]u8 = undefined;
+    const empty: []const u8 = "";
+    sha3_256_hash(empty.ptr, empty.len, &out);
+    try expectDigest(out, "a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a");
+    const abc: []const u8 = "abc";
+    sha3_256_hash(abc.ptr, abc.len, &out);
+    try expectDigest(out, "3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532");
+}
+
+test "ed25519_verify accepts valid and rejects tampered" {
+    const seed = [_]u8{42} ** 32;
+    const kp = try Ed25519.KeyPair.create(seed);
+    const message: []const u8 = "ochrance attestation";
+    const signature = try kp.sign(message, null);
+    const sig_bytes = signature.toBytes();
+    const pk_bytes = kp.public_key.bytes;
+
+    // Valid signature verifies.
+    try std.testing.expectEqual(
+        @as(c_int, 1),
+        ed25519_verify(&sig_bytes, &pk_bytes, message.ptr, message.len),
+    );
+
+    // A tampered signature is rejected, not trapped on.
+    var tampered = sig_bytes;
+    tampered[0] ^= 0xFF;
+    try std.testing.expectEqual(
+        @as(c_int, 0),
+        ed25519_verify(&tampered, &pk_bytes, message.ptr, message.len),
+    );
+
+    // The wrong public key is rejected.
+    var wrong_pk = pk_bytes;
+    wrong_pk[0] ^= 0xFF;
+    try std.testing.expectEqual(
+        @as(c_int, 0),
+        ed25519_verify(&sig_bytes, &wrong_pk, message.ptr, message.len),
+    );
 }

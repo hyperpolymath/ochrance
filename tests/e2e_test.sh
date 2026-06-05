@@ -11,8 +11,7 @@ set -euo pipefail
 PASS=0
 FAIL=0
 # Resolve the repository root from this script's own location so the suite
-# runs identically in CI ($GITHUB_WORKSPACE), in containers, and locally —
-# never a developer-specific absolute path.
+# runs anywhere (CI checkouts, contributor clones), not just one local path.
 BASE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 assert() {
@@ -38,7 +37,7 @@ idris2_functions=$(grep -h "export" "$BASE/src/abi/Ochrance/ABI/Foreign.idr" 2>/
 zig_exports=$(grep -c "^export fn" "$BASE/ffi/zig/src/main.zig" 2>/dev/null || echo 0)
 assert "Zig FFI has exported functions" "$([ "$zig_exports" -gt 0 ] && echo 0 || echo 1)"
 
-# All four hash algorithms are implemented
+# All four hash/signature algorithms are implemented in the Zig crypto FFI.
 assert "BLAKE3 implemented in Zig" "$(grep -q "blake3" "$BASE/ffi/zig/src/main.zig" && echo 0 || echo 1)"
 assert "SHA-256 implemented in Zig" "$(grep -qi "sha.256\|sha256" "$BASE/ffi/zig/src/main.zig" && echo 0 || echo 1)"
 assert "SHA3-256 implemented in Zig" "$(grep -qi "sha3\|sha3_256" "$BASE/ffi/zig/src/main.zig" && echo 0 || echo 1)"

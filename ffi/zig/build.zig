@@ -17,13 +17,15 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    lib.linkLibC(); // std.heap.c_allocator + C ABI
+    // libc is required by std.heap.c_allocator (used by the handle lifecycle)
+    // and is the natural choice for a C-ABI FFI library.
+    lib.linkLibC();
     b.installArtifact(lib);
 
-    // Shared library (libochrance.so) — this is what the Idris2 %foreign
-    // declarations link against at runtime (C:blake3_hash,libochrance ...).
+    // Also create a shared library version (libochrance.so) — this is what the
+    // Idris2 FFI loads at runtime.
     const shared_lib = b.addSharedLibrary(.{
-        .name = "ochrance",
+        .name = "ochrance-shared",
         .root_source_file = .{ .cwd_relative = "src/main.zig" },
         .target = target,
         .optimize = optimize,
