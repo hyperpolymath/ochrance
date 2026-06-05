@@ -1,0 +1,216 @@
+= Ochránce — Proof Campaign Ledger
+:toc: macro
+:sectnums:
+
+// SPDX-License-Identifier: MPL-2.0
+// SPDX-FileCopyrightText: 2026 Jonathan D.A. Jewell (hyperpolymath)
+
+This is the authoritative, dependency-sorted plan for driving the formal
+verification of the Ochránce estate to completion. It is the durable source of
+truth for the proof thread: it survives context compaction, so each working
+window starts from this file rather than from chat memory.
+
+toc::[]
+
+== Scope & estate map
+
+Three repositories are in scope. "Verification" means something different in each.
+
+[cols="1,2,2",options="header"]
+|===
+| Repo | What "verified" means | This thread executes?
+
+| `ochrance`
+| Idris2 dependent-type proofs (the canonical core).
+| *Yes — primary focus.*
+
+| `ochrance-framework`
+| Architecture + docs. Its `ochrance-core` is a weaker, type-incompatible
+  duplicate and is being *retired* (see Decision D1).
+| Docs/Interface harvest only — core is deleted, not proven.
+
+| `svalinn`
+| ReScript edge gateway → migrating to AffineScript + Ephapax. Type-safety and
+  schema/property tests, not dependent types.
+| *No — disposed* to a delegated session (see Disposed Tracks). Specs tracked here.
+|===
+
+== Decisions on record
+
+[cols="1,3",options="header"]
+|===
+| ID | Decision
+
+| *D1 — Converge on ochrance*
+| `ochrance/ochrance-core` is the single source of proof truth.
+  `ochrance-framework/ochrance-core` is retired. Its one genuinely better idea —
+  the *mode-indexed, subsystem-parameterised* `VerifiedSubsystem` Interface
+  (`VerificationProof mode SubState SubManifest`) — is harvested into ochrance.
+  Framework keeps its real value: the docs (A2ML-SPEC, FFI-CONTRACT, THREAT-MODEL,
+  WHITEPAPER, ROADMAP, L4-POLICIES) and architecture.
+
+| *D2 — Crypto binding as a typed interface*
+| The security half of the Merkle argument (collision resistance) is modelled as
+  an Idris hypothesis `CollisionResistant h`, and the binding theorem is
+  discharged against it — not left as prose. Stubbed in Stage 1, discharged in the
+  final stage.
+
+| *D3 — svalinn: migrate before proving*
+| Prove where the language is final; migrate-then-prove where it is changing.
+  svalinn migrates ReScript → *AffineScript* (gateway bulk; affine boundary
+  decoders eliminate `Obj.magic`) + *Ephapax* linear tokens (surgical: JWT/JTI
+  single-use & revocation, OAuth nonce/PKCE, session/container lifecycle). Its
+  *specifications* are captured now (Disposed Tracks); its *proofs* come after
+  migration. Proving the about-to-be-deleted ReScript is waste.
+|===
+
+== Current proof state (ochrance, canonical)
+
+The core is *clean*: all 24 modules carry `%default total`; zero
+`believe_me` / `assert_*` / `postulate` / holes / `partial` on any proof symbol.
+
+.Proven, machine-checked (axiom-free)
+[cols="2,3",options="header"]
+|===
+| Theorem | Statement (shape)
+
+| `merkleCorrect` / `merkleCorrectWith`
+| inclusion-proof soundness; generic over the hash combiner `h` (XOR & BLAKE3 are
+  instances). `reconstructWith h leaf prf = rootHashWith h t`.
+| `verifyProofReconstructs(With)`
+| `verifyProofWith h root leaf prf = (root == reconstructWith h leaf prf)`.
+| `reconstructAppendWith`, `powerTwoSucc`, `justInj`
+| supporting lemmas.
+| `roundtripManifest` + sub-codecs (`algoRT`, `modeRT`, `refsRT`, `mpolRT`, …)
+| grammar invertibility: `decodeManifest (encodeManifest m) = Just m`.
+| `SatisfiesMinimum` / `attestedSatisfiesLax`
+| progressive-assurance threshold witness.
+| ABI `Handle` / `createHandle`
+| `So (ptr /= 0)` non-null invariant discharged via `choose`.
+|===
+
+== The remaining proof program (dependency-sorted)
+
+Each stage is sized to roughly one context window; the thread compacts at each
+boundary with this file as the hand-off. *Watch-fors* are things that may force a
+design change or a model downshift mid-stage.
+
+=== Stage 1 — Merkle closure + crypto-binding interface  [model: Opus]
+
+. `buildMerkleTree` correctness: `getLeafHash (buildMerkleTree hs) i = Just (index i hs)`,
+  and the root-fold law relating `rootHashWith h (buildMerkleTree hs)` to `hs`.
+. *IO↔pure bridge*: prove `verifyProofIO` / `rootHashBytesIO` compute the
+  `…With (blake3 combiner)` spec modulo the `Either` allocation-failure plumbing —
+  connecting the proven theorem to the *production* crypto path.
+. *D2*: introduce `CollisionResistant h` and `merkleBinding` (stub/interface).
++
+WATCH-FOR: the `replace`-by-`powerTwoSucc` transport in `buildMerkleTree` may fight
+the index lemma; if it forces a builder/API reshape, stop and surface the fork.
+
+=== Stage 2 — Verify + Validator soundness  [model: Opus → Sonnet if mechanical]
+
+. Validator: validated manifest ⇒ structural invariants hold.
+. `verifyState` agrees with the manifest, wired to `merkleCorrect`.
+. Hex codec: `hexStringToBytes (bytesToHex bs) = Just bs` and the length law.
++
+WATCH-FOR: `Verify` and `Hex` likely rest on primitive `String`/`Bits8`
+comparison — the *same wall* as the lexer round-trip. If so the honest theorem is
+propositional-over-decidable (document the boundary; do *not* reach for
+`believe_me`). This can shorten Stage 2 and justify a Sonnet downshift.
+
+=== Stage 3 — Repair correctness (L3, linear types)  [model: Opus]
+
+. `verify (repair s) = Valid` — the meaty linear-type theorem.
+. Repair idempotence as a *proof* (today only a property test).
+. Harvest framework's mode-indexed Interface; state the `VerifiedSubsystem` law
+  `verify (repair s m) m = Right …` and prove the FSState instance satisfies it.
++
+WATCH-FOR: may need proof witnesses threaded through the `1`-quantified API —
+possible signature changes to `Repair.idr`.
+
+=== Stage 4 — Completeness, binding discharge, write-up  [model: Sonnet; Opus if binding is hard]
+
+. Merkle *completeness* (converse of soundness): in-range leaf ⇒ a proof exists.
+. *D2 discharge*: prove the binding argument against `CollisionResistant`.
+. Progressive monotonicity: the remaining `SatisfiesMinimum` cases (all `Refl`).
+. Final ledger pass; thesis-aligned summary (ICFP/PLDI/SOSP framing).
+
+CLEAR = every intended theorem proven *or honestly bounded* (primitive walls
+documented, never faked), disposed tracks handed off, PRs landed.
+
+== Honestly-bounded items (NOT failures — boundaries by design)
+
+* *Production-pipeline round-trip* (`parse . lex . serialize = Right m`) cannot
+  carry a compile-time theorem: `pack`/`unpack`/`parseInteger` are primitives with
+  no equational theory. The honest guarantee is `roundtripManifest` over a
+  reference token codec, complemented by `roundtripProperty` at runtime.
+* *`root == root` Bool step* in `merkleCorrect`: the propositional digest equality
+  is the strongest honest statement; discharging the residual primitive-`Bits8`
+  `==` would need an unsafe reflexivity axiom.
+
+== Disposed tracks (handoff briefs)
+
+These are *not* this thread's work. Each is a brief for a delegated session,
+disposed at Compaction 1. Specs live here so nothing is lost.
+
+=== svalinn — migrate (AffineScript + Ephapax), then verify  [model: Sonnet]
+
+PRECONDITION: language migration precedes proof (Decision D3).
+
+. *Migrate* ReScript → AffineScript (gateway, auth, policy, MCP, vörðr, compose).
+  Affine boundary-decoders replace the *20+ `Obj.magic`* casts in security paths.
+. *Ephapax linear tokens* for exactly-once resources: JWT/JTI single-use + the
+  revocation ledger (fixes the `hasRevocationList = false // TODO` hazard by
+  construction), OAuth nonce/PKCE, session/container lifecycle.
+. *Unblock CI*: the 53 ReScript unit/security tests don't execute under Deno
+  (`@rescript/core` resolution) — they vanish with the migration; ensure the
+  AffineScript suite runs in CI.
+. *Specs to discharge after migration* (language-agnostic): policy determinism;
+  `allow ∩ deny` composition + monotonicity; JWT single-use & revocation;
+  no unchecked boundary casts; JSON-Schema conformance of all 9 gateway types.
+. *Planned SPARK properties* (`cerro-torre-integration.adoc §6.2`): attestation
+  sig, key lookup, threshold sig, log inclusion, policy eval.
++
+DEPENDENCY: Ephapax has *3 Admitted* (Coq) — svalinn's linear guarantees inherit
+those holes until closed. Track upstream.
+
+=== ochrance-framework — retire core, harvest Interface, keep docs  [model: Sonnet]
+
+. Delete `ochrance-framework/ochrance-core`; make the repo depend on / reference
+  the canonical ochrance core.
+. Harvest the mode-indexed `VerifiedSubsystem` Interface into ochrance (Stage 3).
+. Fix the weak spots that should *not* be carried over: `decodeSnapshot` always
+  returns `Nothing` (repair unreachable); `signatureValid : Bool` and
+  `allPresent : Bool` are unguarded runtime flags; no totality gate in CI.
+. Keep and maintain the docs — they are the framework repo's real value.
+
+=== ochrance ABI / Zig FFI hardening  [model: Sonnet/Haiku]
+
+. `blake3Hash` in `src/abi/Ochrance/ABI/Foreign.idr` is `covering` + a stub
+  returning `replicate 32 0` — wire it to the real Zig `libochrance` BLAKE3.
+. ECHIDNA FFI is entirely stubbed (`echidnaProve` returns
+  `Left "FFI not yet implemented"`).
+
+=== CI watch — PR #32  [model: Haiku/Sonnet]
+
+Keep PR #32 (combiner generalisation) shepherded to green; it is subscribed.
+
+== Model guidance (per the thread's operating model)
+
+[cols="1,3",options="header"]
+|===
+| Model | Use
+
+| *Opus 4.8*
+| Proof *discovery* — "is this provable, what is the shape": Stages 1, 3, and any
+  novel theorem or structural-wall reasoning.
+| *Sonnet 4.6*
+| Proof *mechanisation* (known shape), refactors, tests, and the disposed-track
+  application work (svalinn AffineScript, framework, ABI).
+| *Haiku 4.5*
+| Grunt sweeps — suites, grep, SPDX/format, CI watch.
+|===
+
+RULE: when a stage's remaining work is all mechanical, downshift this thread to
+Sonnet to conserve Opus budget; when a *research-grade wall* appears, pause for the
+design conversation rather than pushing proofs.
