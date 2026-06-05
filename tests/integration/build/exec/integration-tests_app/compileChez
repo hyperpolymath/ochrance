@@ -1,1 +1,0 @@
-(parameterize ([optimize-level 3] [compile-file-message #f]) (compile-program "/var/mnt/eclipse/repos/ochrance/tests/integration/build/exec/integration-tests_app/integration-tests.ss"))

@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: MPL-2.0
+# Build and test the Zig cryptographic FFI (ffi/zig).
+#
+# This is the only CI job that compiles the Zig FFI, so it is what actually
+# verifies the BLAKE3 / SHA-256 / SHA3-256 / Ed25519 implementations in
+# ffi/zig/src/main.zig (the grep-based E2E job only checks source strings).
+name: Zig FFI
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  zig-ffi:
+    name: Zig FFI build + test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Set up Zig 0.11.0
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: 0.11.0
+      - name: Build (libochrance.so + libochrance.a)
+        working-directory: ffi/zig
+        run: zig build
+      - name: Test (hash known-answer vectors + Ed25519 round-trip)
+        working-directory: ffi/zig
+        run: zig build test

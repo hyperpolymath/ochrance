@@ -28,7 +28,7 @@ Components:
 * [x] Framework Interface (VerifiedSubsystem)
 * [x] Proof Witnesses (Lax/Checked/Attested modes)
 * [x] Error Taxonomy (q/p/z classification)
-* [ ] Merkle Tree Implementation (size-indexed, needs BLAKE3 FFI)
+* [ ] Merkle Tree Implementation (size-indexed; BLAKE3 FFI now implemented in Zig — build/link wiring still pending)
 * [ ] Filesystem Verification (VerifiedSubsystem instance)
 * [ ] Linear Type Repair (consume-old-state semantics)
 * [ ] Integration Tests (50+ scenarios)
@@ -37,14 +37,14 @@ Components:
 
 1. Complete A2ML Validator (signature verification via FFI)
 2. Implement A2ML Serializer (roundtrip verification)
-3. Replace Merkle tree XOR placeholder with BLAKE3 FFI
+3. Wire the implemented Zig BLAKE3 FFI into Merkle and remove the XOR stub combiner
 4. Implement Filesystem.Verify module
 5. Implement Filesystem.Repair with linear types (Quantity 1)
 
 **Blockers:**
 
 * Idris2 0.8.0+ compiler required
-* BLAKE3/SHA-256 FFI needed for production hashing
+* `libochrance.so` (Zig crypto FFI) must be built and linked into the Idris2 verification flow; the primitives themselves (BLAKE3/SHA-256/SHA3-256/Ed25519) are now implemented and tested
 
 === Phase 2: ECHIDNA Integration (v0.2.0) - **Planned**
 

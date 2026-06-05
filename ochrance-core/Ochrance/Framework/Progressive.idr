@@ -23,13 +23,29 @@ module Ochrance.Framework.Progressive
 public export
 data VerificationMode = Lax | Checked | Attested
 
-||| ORDERING: Defines the relationship Lax < Checked < Attested.
+||| RANK: numeric strictness, with Lax < Checked < Attested.
+public export
+rank : VerificationMode -> Nat
+rank Lax      = 0
+rank Checked  = 1
+rank Attested = 2
+
+||| Is `mode` at least as strict as `threshold`?
+public export
+atLeast : (threshold : VerificationMode) -> (mode : VerificationMode) -> Bool
+atLeast threshold mode = rank threshold <= rank mode
+
+public export
+Eq VerificationMode where
+  Lax      == Lax      = True
+  Checked  == Checked  = True
+  Attested == Attested = True
+  _        == _        = False
+
+||| ORDERING: Defines the relationship Lax < Checked < Attested via `rank`.
 public export
 Ord VerificationMode where
-  compare Lax      Lax      = EQ
-  compare Lax      _        = LT
-  compare Checked  Attested = LT
-  -- ... [Remaining cases]
+  compare x y = compare (rank x) (rank y)
 
 --------------------------------------------------------------------------------
 -- Proof Witnesses

@@ -1,0 +1,83 @@
+= Ochránce — Re-entry After the svalinn → Ephapax Migration
+:toc: macro
+:sectnums:
+
+// SPDX-License-Identifier: MPL-2.0
+// SPDX-FileCopyrightText: 2026 Jonathan D.A. Jewell (hyperpolymath)
+
+This is the *round-trip closure* for the svalinn migration that was disposed from
+the proof campaign (`docs/PROOFS.adoc`, Decision *D3*; outbound charter at
+`svalinn/docs/ephapax-migration/HANDOFF.adoc`). Read it when the migration
+excursion *returns*, before resuming the proof program. It exists so the loop
+"delegate → migrate → come back" closes cleanly even after this thread is gone.
+
+toc::[]
+
+== The loop
+
+----
+proof thread (here)
+  └─ dispose svalinn migration  →  HANDOFF.adoc  →  [svalinn + ephapax session]
+        runs the spike, then the map, then the port (its own draft PRs)
+  ←─ return here  →  read THIS doc  →  reconcile  →  resume PROOFS.adoc
+----
+
+You are at the *return* step.
+
+== Reachability first (so you don't hit a 404)
+
+The migration's outputs live in the *svalinn* repo, not here. To do the
+reconciliation below you need *either* `hyperpolymath/svalinn` in this session's
+scope, *or* the delegated session to paste you its spike verdict. The proof
+campaign itself only needs `ochrance`.
+
+== Step 1 — Read the spike verdict (the gate)
+
+The migration was *gated* on a readiness spike (can Ephapax host an HTTP gateway
+today?). Its result is the capability matrix in
+`svalinn/docs/ephapax-migration/BLOCKER-LINEAGE.adoc`. Branch on it:
+
+[cols="1,4",options="header"]
+|===
+| Verdict | What it means / what you do
+
+| *GREEN* — Ephapax viable
+| The migration proceeded. Go to Step 2.
+
+| *RED* — a MUST-have absent, *D3 invalidated*
+| svalinn's language decision is *reopened*. Do *not* resume svalinn proofs.
+  Update `PROOFS.adoc` D3 with the new decision (stay ReScript + prove /
+  AffineScript / wait on Ephapax), then treat svalinn as a fresh disposed track.
+|===
+
+== Step 2 — Reconcile (green path)
+
+Fold the migration's results back into the campaign. Checklist:
+
+* [ ] `BLOCKER-LINEAGE.adoc` exists and its ring-0 critical chain was executed.
+* [ ] *Zero* `Obj.magic` in svalinn `src/` (the 20+ casts are gone
+  *structurally*, not patched).
+* [ ] JWT/JTI revocation is true-by-construction → svalinn *issue #13* is
+  dischargeable: verify and close it.
+* [ ] The *Ephapax* test suite runs *green* in CI (the pre-existing ReScript red
+  is gone because the ReScript is gone — not because it was fixed).
+* [ ] svalinn *PR #32* (the AffineScript language-policy PR) was reconciled to
+  Ephapax or closed; the `.claude/CLAUDE.md` language table was updated.
+* [ ] `PROOFS.adoc` updated: tick the svalinn disposed track; *promote* its
+  post-migration specs (Appendix E of the charter) into the proof program — now
+  the language is final, they are provable.
+
+== Step 3 — Resume the proof campaign
+
+Return to `docs/PROOFS.adoc` and continue at the stage you left (Stage 1 on Opus
+if you came straight back). The svalinn specs become a *sibling track* once
+Ephapax is the language; prove them via the route the spike established —
+Ephapax's own linear types, the Idris ABI layer (`svalinn/src/abi/*.idr`), or
+SPARK (`svalinn/docs/cerro-torre-integration.adoc` §6.2).
+
+== Cross-references
+
+* `docs/PROOFS.adoc` — the proof-campaign ledger (Decision D3, disposed tracks).
+* `svalinn/docs/ephapax-migration/HANDOFF.adoc` — the outbound charter.
+* `svalinn/docs/ephapax-migration/BLOCKER-LINEAGE.adoc` — the migration's own
+  output (spike verdict + critical chain), produced by the delegated session.
