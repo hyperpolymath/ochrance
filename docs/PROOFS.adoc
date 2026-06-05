@@ -30,8 +30,8 @@ Three repositories are in scope. "Verification" means something different in eac
 | Docs/Interface harvest only — core is deleted, not proven.
 
 | `svalinn`
-| ReScript edge gateway → migrating to AffineScript + Ephapax. Type-safety and
-  schema/property tests, not dependent types.
+| ReScript edge gateway → migrating to *Ephapax* (replaces all ReScript).
+  Type-safety and schema/property tests, not dependent types.
 | *No — disposed* to a delegated session (see Disposed Tracks). Specs tracked here.
 |===
 
@@ -57,11 +57,13 @@ Three repositories are in scope. "Verification" means something different in eac
 
 | *D3 — svalinn: migrate before proving*
 | Prove where the language is final; migrate-then-prove where it is changing.
-  svalinn migrates ReScript → *AffineScript* (gateway bulk; affine boundary
-  decoders eliminate `Obj.magic`) + *Ephapax* linear tokens (surgical: JWT/JTI
-  single-use & revocation, OAuth nonce/PKCE, session/container lifecycle). Its
-  *specifications* are captured now (Disposed Tracks); its *proofs* come after
-  migration. Proving the about-to-be-deleted ReScript is waste.
+  svalinn migrates ReScript → *Ephapax* — Ephapax replaces *all* the ReScript.
+  Its linear/exactly-once types make JWT/JTI single-use & revocation, OAuth
+  nonce/PKCE, and session/container lifecycle *compile-time* guarantees, and typed
+  boundary decoders eliminate the 20+ `Obj.magic`. Its *specifications* are
+  captured now (Disposed Tracks); its *proofs* come after migration. Proving the
+  about-to-be-deleted ReScript is waste. (AffineScript is *not* the target — it
+  surfaced only as a format exemplar for the migration map.)
 |===
 
 == Current proof state (ochrance, canonical)
@@ -153,18 +155,26 @@ documented, never faked), disposed tracks handed off, PRs landed.
 These are *not* this thread's work. Each is a brief for a delegated session,
 disposed at Compaction 1. Specs live here so nothing is lost.
 
-=== svalinn — migrate (AffineScript + Ephapax), then verify  [model: Sonnet]
+=== svalinn — migrate ReScript → Ephapax, then verify  [model: Sonnet]
 
-PRECONDITION: language migration precedes proof (Decision D3).
+PRECONDITION: language migration precedes proof (Decision D3). The *first*
+deliverable is a migration map (the critical chain of blockers) — handed to an
+offline Claude with `hyperpolymath/ephapax` access, targeting
+`svalinn/docs/ephapax-migration/BLOCKER-LINEAGE.adoc`. ROOT of that chain, and the
+one thing this session could not settle (ephapax is out of scope here): whether
+Ephapax is yet an implementable application language (compiler, runtime,
+HTTP/async I/O, JSON, fetch, crypto, FFI) or still a proof-level calculus.
 
-. *Migrate* ReScript → AffineScript (gateway, auth, policy, MCP, vörðr, compose).
-  Affine boundary-decoders replace the *20+ `Obj.magic`* casts in security paths.
+. *Migrate* ReScript → Ephapax (gateway, auth, policy, validation, MCP, vörðr,
+  compose; ~27 `src/` modules + the `ui/` ReScript frontend). Typed boundary
+  decoders make the *20+ `Obj.magic`* casts in security paths impossible.
 . *Ephapax linear tokens* for exactly-once resources: JWT/JTI single-use + the
   revocation ledger (fixes the `hasRevocationList = false // TODO` hazard by
-  construction), OAuth nonce/PKCE, session/container lifecycle.
+  construction), OAuth nonce/PKCE, session/container lifecycle, vörðr delegation.
 . *Unblock CI*: the 53 ReScript unit/security tests don't execute under Deno
   (`@rescript/core` resolution) — they vanish with the migration; ensure the
-  AffineScript suite runs in CI.
+  Ephapax suite runs in CI. (svalinn `main` CI is currently red on pre-existing
+  ReScript breakage — do not fix it in ReScript; it is being replaced.)
 . *Specs to discharge after migration* (language-agnostic): policy determinism;
   `allow ∩ deny` composition + monotonicity; JWT single-use & revocation;
   no unchecked boundary casts; JSON-Schema conformance of all 9 gateway types.
@@ -173,6 +183,10 @@ PRECONDITION: language migration precedes proof (Decision D3).
 +
 DEPENDENCY: Ephapax has *3 Admitted* (Coq) — svalinn's linear guarantees inherit
 those holes until closed. Track upstream.
++
+DISCHARGES: svalinn security issue #13 (19 Critical/High panic-attack findings —
+`decodeJwt()` without `jwtVerify()`, `JSON.parseExn`) is addressed structurally by
+this migration (verified JWT + typed deserialisation), not by patching ReScript.
 
 === ochrance-framework — retire core, harvest Interface, keep docs  [model: Sonnet]
 
@@ -206,7 +220,7 @@ Keep PR #32 (combiner generalisation) shepherded to green; it is subscribed.
   novel theorem or structural-wall reasoning.
 | *Sonnet 4.6*
 | Proof *mechanisation* (known shape), refactors, tests, and the disposed-track
-  application work (svalinn AffineScript, framework, ABI).
+  application work (svalinn Ephapax migration, framework, ABI).
 | *Haiku 4.5*
 | Grunt sweeps — suites, grep, SPDX/format, CI watch.
 |===
