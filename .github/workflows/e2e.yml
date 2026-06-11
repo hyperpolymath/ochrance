@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: MPL-2.0
 name: E2E and Integration Tests
 on:
-  push: { branches: [main] }
-  pull_request: { branches: ['**'] }
+  push: {branches: [main]}
+  pull_request: {branches: ['**']}
 permissions:
   contents: read
 jobs:
