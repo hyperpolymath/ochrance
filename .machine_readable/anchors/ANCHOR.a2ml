@@ -3,7 +3,7 @@
 
 id: "org.hyperpolymath.ochrance"
 version: "1.0.0"
-clade: "unknown"
+clade: "fv"
 status: "active"
 
 # SSG Configuration (Unified boj-server build)

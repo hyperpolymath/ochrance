@@ -2,48 +2,61 @@
 # Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
 #
 # debt.a2ml — Meander debt list
-# Things found but not fixed. Carried between sessions.
-# Becomes the next session's Phase 0 input.
-#
+# Things found but not fixed. Carried between sessions; becomes the next
+# session's Phase 0 input. Items are consumed (removed) when fixed.
+# Each item: component, issue, effort (easy|medium|hard), impact (high|medium|low), discovered.
 # Reference: ADR-002 in standards/agentic-a2ml/docs/
 
 [metadata]
-version = "1.0.0"
-last-updated = "2026-03-24"
-
-# ============================================================================
-# DEBT ITEMS
-# ============================================================================
-# Each item has: component, issue, effort (easy|medium|hard), impact (high|medium|low),
-# priority (should|could), and discovered date.
-#
-# Items are consumed (removed) when fixed. New items are added at session end.
-# The debt list prevents the "one more wave" loop — found things are persisted,
-# not forgotten, and not used as justification for infinite meandering.
+version = "1.1.0"
+last-updated = "2026-06-05"
 
 # ============================================================================
 # SHOULD — would fix next wave
 # ============================================================================
-# These are inputs for the next session if the user says "keep going".
-#
-# Example:
-# [[debt.should]]
-# component = "system-tools/monitoring/observatory"
-# issue = "Stale duplicate of root observatory/"
-# effort = "easy"
-# impact = "medium"
-# discovered = "2026-03-23"
+
+[[debt.should]]
+component = "ochrance-core/Ochrance/FFI/Crypto.idr"
+issue = "Idris stub fallbacks (hashPairStub / blake3Stub / ed25519VerifyStub) remain in the verification flow and libochrance.so is not yet built+linked — so no cryptographic-integrity claim can be made (CLAUDE.md rule 4)."
+effort = "hard"
+impact = "high"
+discovered = "2026-06-05"
+
+[[debt.should]]
+component = "ochrance-core/Ochrance/Filesystem/Repair.idr"
+issue = "Repair idempotence is property-tested only, not proven (proof campaign Stage 3)."
+effort = "hard"
+impact = "high"
+discovered = "2026-06-05"
+
+[[debt.should]]
+component = "ochrance-core/Ochrance/FFI/Echidna.idr"
+issue = "ECHIDNA FFI is stubbed — echidnaProve returns 'FFI not yet implemented'."
+effort = "hard"
+impact = "medium"
+discovered = "2026-06-05"
 
 # ============================================================================
 # COULD — would fix eventually
 # ============================================================================
-# These are low-priority items that don't justify a session on their own.
-# They get picked up when an agent is in the area for other reasons.
-#
-# Example:
-# [[debt.could]]
-# component = "cicada"
-# issue = "RSR_OUTLINE.adoc references banned AGPL-3.0"
-# effort = "easy"
-# impact = "low"
-# discovered = "2026-03-23"
+
+[[debt.could]]
+component = ".machine_readable/"
+issue = "Behind the rsr-template scaffold: missing ai/, compliance/, configs/, policies/, scripts/, 0.1-AI-MANIFEST.a2ml, ENSAID_CONFIG.a2ml, root README.adoc, root-allow.txt. Needs template sync (Track B) — blocked on rsr-template/standards access."
+effort = "medium"
+impact = "medium"
+discovered = "2026-06-05"
+
+[[debt.could]]
+component = ".machine_readable/6a2/ (estate-wide)"
+issue = "phase vocabulary is not pinned by an enforced standard (svalinn 'crg-c-testing' vs ochrance 'implementation') — possible standards↔rsr-template divergence (Flag A); confirm against the canonical standards spec."
+effort = "medium"
+impact = "medium"
+discovered = "2026-06-05"
+
+[[debt.could]]
+component = ".github/workflows (ECHIDNA validation)"
+issue = "Dangerous-pattern scan greps literal strings including inside comments, so legitimate documentation can trip it (false positives)."
+effort = "easy"
+impact = "low"
+discovered = "2026-06-04"

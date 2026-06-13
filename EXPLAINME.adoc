@@ -16,7 +16,7 @@ Three components orchestrate this: A2ML parser/validator (parses filesystem mani
 
 === Claim 1: A2ML Lexer and Parser Are Structurally Recursive and Total
 
-**Location**: `/var/mnt/eclipse/repos/ochrance/ochrance-core/A2ML/Lexer.idr` and `/var/mnt/eclipse/repos/ochrance/ochrance-core/A2ML/Parser.idr` (Idris2 modules)
+**Location**: `ochrance-core/A2ML/Lexer.idr` and `ochrance-core/A2ML/Parser.idr` (Idris2 modules)
 
 **How verified**: Both modules use the `%default total` directive, requiring all functions to be total (no partial match, no undefined behavior). The lexer is structurally recursive: it tokenizes input by consuming characters and recursing on the remainder (proof: input size strictly decreases). The parser is similarly total: it parses tokens using sized types (`List (n : Nat)`) to guarantee termination (proof: token list shrinks). README (§Overview) claims "A2ML Parser/Validator" with compile-time structure proofs; this is verified by the Idris2 type checker itself — if either module had a partial function, `idris2 --check` would reject it with an error, not compile.
 
@@ -24,7 +24,7 @@ Three components orchestrate this: A2ML parser/validator (parses filesystem mani
 
 === Claim 2: Verified Merkle Tree Size Guarantees Are Compile-Time Proofs
 
-**Location**: `/var/mnt/eclipse/repos/ochrance/ochrance-core/Framework/Merkle.idr` (Idris2 Merkle tree with size-indexed types)
+**Location**: `ochrance-core/Filesystem/Merkle.idr` (Idris2 Merkle tree with size-indexed types)
 
 **How verified**: The Merkle tree is defined as a size-indexed binary tree: `MerkleTree : (size : Nat) → Type`. At compile time, Idris2 verifies that all leaf nodes are at depth `log2(size)`. The tree operations (leaf insertion, hash computation, proof generation) take dependent proofs that structure is maintained. README (§Architecture) claims "Verified Merkle trees — Size-indexed binary trees with compile-time structure proofs." This is proven by the type signature itself: if you try to construct a tree of size 8 with only 7 leaves, the type checker rejects it because the dependent type `MerkleTree 8` requires exactly 8 leaves.
 
