@@ -14,6 +14,16 @@ v0.1.0, 2026-02-06
 * **Linear type repair** - Filesystem repair operations that prevent use-after-repair bugs
 * **ECHIDNA integration** - Neural proof synthesis for automated verification
 
+== Status
+
+Formal verification is **in progress** — see link:docs/PROOFS.adoc[`docs/PROOFS.adoc`]
+for the authoritative, dependency-sorted plan and the currently-proven surface
+(combiner-generic Merkle soundness, A2ML parser totality, manifest round-trip,
+progressive assurance). *Cryptographic integrity is not yet claimed*: the real
+BLAKE3 / SHA-256 / SHA3-256 / Ed25519 lives in the Zig FFI, but the Idris-side
+stub fallbacks must be removed and `libochrance.so` linked into the verification
+flow first (issue #39).
+
 == Architecture
 
 [source]
@@ -70,10 +80,10 @@ The framework defines the broader `VerifiedSubsystem` interface and four planned
 modules (Filesystem, Memory, Network, Crypto). This repo (`ochrance`) provides the concrete,
 working implementation of the Filesystem module using Idris2 dependent types and Zig FFI.
 
-The two repos are **complementary**, not duplicates:
+The two repos are **complementary**:
 
-* **ochrance** (this repo) — concrete filesystem verification implementation (~80% complete)
-* **ochrance-framework** — abstract modular framework for all four subsystems (~10% complete)
+* **ochrance** (this repo) — the canonical core: concrete filesystem verification with the machine-checked proofs and the Zig crypto FFI.
+* **ochrance-framework** — the architecture / specification layer (the `VerifiedSubsystem` interface and the four planned subsystem modules). Its earlier duplicate core is retired in favour of this repo's (decision D1).
 
 === valence-shell & echo-types (Reversibility Stack neighbours)
 
@@ -94,6 +104,6 @@ SPDX-License-Identifier: MPL-2.0
 Copyright (C) 2026 Jonathan D.A. Jewell. All rights reserved.
 
 
-== Architecture
+== Topology & Dashboard
 
 See link:TOPOLOGY.md[TOPOLOGY.md] for a visual architecture map and completion dashboard.
