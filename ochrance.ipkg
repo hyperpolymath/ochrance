@@ -23,6 +23,8 @@ modules = Ochrance.A2ML.Types
         , Ochrance.Util.Hex
         , Ochrance.Filesystem.Types
         , Ochrance.Filesystem.Merkle
+        , Ochrance.Util.VectLemmas
+        , Ochrance.Filesystem.MerkleBuild
         , Ochrance.Filesystem.Verify
         , Ochrance.Filesystem.Repair
         , Ochrance.FFI.Echidna

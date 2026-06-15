@@ -1,6 +1,10 @@
-||| Stage-1 scratch: helper lemmas for buildMerkleTree correctness.
-||| Iterated here (no Ochrance deps) before folding into Merkle.
-module Ochrance.Scratch
+||| SPDX-License-Identifier: MPL-2.0
+|||
+||| Ochrance.Util.VectLemmas - reusable Vect/Fin lemmas for the Merkle proofs.
+|||
+||| index-over-append (both halves), transport cancellation for `replace`,
+||| finToNat under transport, and the splitAt re-append law.
+module Ochrance.Util.VectLemmas
 
 import Data.Vect
 import Data.Fin
