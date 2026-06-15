@@ -119,6 +119,7 @@ MerkleProof = List (Direction, HashBytes)
 ||| By definition: power 2 (S k) = 2 * power 2 k = power 2 k + power 2 k
 ||| We prove this by showing that n + 0 = n (plusZeroRightNeutral) and then
 ||| using the fact that power 2 (S k) reduces to (power 2 k) + (power 2 k + 0).
+public export
 powerTwoSucc : (k : Nat) -> power 2 (S k) = power 2 k + power 2 k
 powerTwoSucc k =
   -- power 2 (S k) normalises to: power 2 k + (power 2 k + 0)
@@ -255,7 +256,7 @@ generateProofIO {n = S k} (Node l r) idx =
 
 ||| Get a specific leaf hash from a Merkle tree by index (pure version).
 ||| Returns Nothing if index is out of range.
-export
+public export
 getLeafHash : {n : Nat} -> MerkleTree n -> (leafIdx : Nat) -> Maybe HashBytes
 getLeafHash {n = Z} (Leaf h) Z = Just h
 getLeafHash {n = Z} (Leaf _) (S _) = Nothing
