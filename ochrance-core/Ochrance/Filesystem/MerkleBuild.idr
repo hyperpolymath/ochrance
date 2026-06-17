@@ -127,3 +127,45 @@ buildGetLeaf {n = S k} hs i with (splitAt (power 2 k)
         in rewrite finEq in
            rewrite idxEq in
            buildGetLeafSplit left right i' buildGetLeaf
+
+--------------------------------------------------------------------------------
+-- Root-fold law (Stage 1.2): the root is a deterministic fold over the leaves
+--------------------------------------------------------------------------------
+
+||| The Merkle root expressed as a direct fold over the leaf vector, independent
+||| of the tree representation: a singleton folds to its element; a `2^(S k)`
+||| vector splits into halves (the *same* split `buildMerkleTree` uses) and
+||| combines the two sub-folds with `h`. This is the representation-independent
+||| *spec* of the root — a pure function of the leaves.
+public export
+foldRoot : (h : Combiner) -> {n : Nat} -> Vect (power 2 n) HashBytes -> HashBytes
+foldRoot h {n = Z}   [x] = x
+foldRoot h {n = S k} hs  =
+  let hs' : Vect (power 2 k + power 2 k) HashBytes
+      hs' = replace {p = \x => Vect x HashBytes} (powerTwoSucc k) hs
+  in case splitAt (power 2 k) hs' of
+       (l, r) => h (foldRoot h l) (foldRoot h r)
+
+||| Inductive step of the root-fold law on the *already split* halves, so the
+||| `rootHashWith`-of-`Node` reduction is clean and decoupled from the `with`
+||| abstraction (mirrors `buildGetLeafSplit`). The IH is a higher-order argument.
+rootFoldSplit : (h : Combiner) -> {k : Nat} ->
+  (l, r : Vect (power 2 k) HashBytes) ->
+  ((v : Vect (power 2 k) HashBytes) ->
+     rootHashWith h (buildMerkleTree {n = k} v) = foldRoot h {n = k} v) ->
+  rootHashWith h (Node (buildMerkleTree {n = k} l) (buildMerkleTree {n = k} r))
+    = h (foldRoot h {n = k} l) (foldRoot h {n = k} r)
+rootFoldSplit h l r ih = rewrite ih l in rewrite ih r in Refl
+
+||| Root-fold law: the root of the built tree equals the direct leaf fold.
+||| `rootHashWith h (buildMerkleTree hs) = foldRoot h hs`. Pairs with
+||| `buildGetLeaf` to fully characterise `buildMerkleTree`, and hands the binding
+||| argument a leaf-only handle on the root ("the root is a function of the
+||| leaves"). The combiner `h` is opaque, so this holds for XOR and BLAKE3 alike.
+export
+rootFoldLaw : (h : Combiner) -> {n : Nat} -> (hs : Vect (power 2 n) HashBytes) ->
+              rootHashWith h (buildMerkleTree {n} hs) = foldRoot h {n} hs
+rootFoldLaw h {n = Z} [x] = Refl
+rootFoldLaw h {n = S k} hs
+    with (splitAt (power 2 k) (replace {p = \x => Vect x HashBytes} (powerTwoSucc k) hs))
+  _ | (l, r) = rootFoldSplit h l r (rootFoldLaw h)

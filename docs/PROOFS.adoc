@@ -89,6 +89,8 @@ The core is *clean*: all 19 `ochrance-core` modules carry `%default total` (the
 | `Ochrance.Util.VectLemmas` (×5)
 | reusable transport/append lemmas: `indexAppendLeft` / `indexAppendRight`,
   `indexReplace`, `finToNatReplace`, `splitAtConcat`.
+| `rootFoldLaw` + `foldRoot` (Stage 1.2)
+| root characterisation: `rootHashWith h (buildMerkleTree hs) = foldRoot h hs` (combiner-generic).
 | `roundtripManifest` + sub-codecs (`algoRT`, `modeRT`, `refsRT`, `mpolRT`, …)
 | grammar invertibility: `decodeManifest (encodeManifest m) = Just m`.
 | `SatisfiesMinimum` / `attestedSatisfiesLax`
@@ -109,9 +111,10 @@ design change or a model downshift mid-stage.
   `getLeafHash (buildMerkleTree hs) (finToNat i) = Just (index i hs)`
   (`buildGetLeaf` in `Ochrance.Filesystem.MerkleBuild`, on the reusable
   `Ochrance.Util.VectLemmas` lemmas). Machine-checked, axiom-free, on `main`.
-. *[1.2] Root-fold law*: characterise `rootHashWith h (buildMerkleTree hs)` as a
-  deterministic fold over `hs` — "the root is a function of the leaves". Pure;
-  prerequisite of the binding argument.
+. *[DONE — 1.2]* Root-fold law: `rootHashWith h (buildMerkleTree hs) = foldRoot h hs`
+  (`rootFoldLaw` + `foldRoot` in `Ochrance.Filesystem.MerkleBuild`) — the root is a
+  deterministic, representation-independent fold over the leaves. Combiner-generic;
+  prerequisite of the binding argument. Machine-checked, axiom-free.
 . *[1.3] IO↔pure bridge*: prove `verifyProofIO` / `rootHashBytesIO` compute the
   `…With (hashPairBlake3 …)` spec modulo the `Either` allocation-failure plumbing,
   against a typed combiner-equality hypothesis — connecting the proven theorem to
