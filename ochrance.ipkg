@@ -29,6 +29,7 @@ modules = Ochrance.A2ML.Types
         , Ochrance.Filesystem.MerkleBuild
         , Ochrance.Filesystem.MerkleIO
         , Ochrance.Filesystem.MerkleBinding
+        , Ochrance.Filesystem.MerkleAssumption
         , Ochrance.Filesystem.Verify
         , Ochrance.Filesystem.VerifyProof
         , Ochrance.Filesystem.VerifyMerkle

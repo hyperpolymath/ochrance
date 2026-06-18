@@ -9,9 +9,11 @@
 ||| Idris hypothesis `CollisionResistant h` (injectivity of the combiner), and the
 ||| binding theorem `merkleBinding` is *discharged against it*, never asserted.
 ||| `CollisionResistant h` itself is the sole assumed boundary - no `postulate`,
-||| no `believe_me`; it is discharged for the concrete cryptographic combiner in
-||| Stage 4. Everything from the hypothesis through `merkleBinding` is fully
-||| machine-checked here.
+||| no `believe_me`. It is the irreducible cryptographic trust root: full injectivity
+||| is pigeonhole-false for a compressing combiner, so it can NEVER be discharged by
+||| proof (see `Ochrance.Filesystem.MerkleAssumption`) - it stays an explicit
+||| hypothesis, supplied at the verification boundary. Everything from the hypothesis
+||| through `merkleBinding` is fully machine-checked here.
 |||
 ||| The proof rides on the root-fold law (Stage 1.2): because the root is a fold
 ||| over the leaves (`foldRoot`), injectivity of the combiner lifts, level by
@@ -34,8 +36,10 @@ import Ochrance.Util.VectLemmas
 ||| Collision resistance of a combiner, modelled as *injectivity*: equal outputs
 ||| force equal inputs, pairwise. This is the type-level content of collision
 ||| resistance - the strongest fact one can name without leaving the model into
-||| concrete computation. It is the single assumed hypothesis of the binding
-||| theorem; Stage 4 discharges it for the concrete cryptographic combiner.
+||| concrete computation. It is the single assumed hypothesis of the binding theorem,
+||| and the irreducible cryptographic trust root: full injectivity is pigeonhole-false
+||| for a compressing combiner, so it is never dischargeable by proof (see
+||| `MerkleAssumption.constNotCollisionResistant`, which shows it has teeth).
 public export
 CollisionResistant : Combiner -> Type
 CollisionResistant h =
