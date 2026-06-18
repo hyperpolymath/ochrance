@@ -121,6 +121,13 @@ The core is *clean*: all 19 `ochrance-core` modules carry `%default total` (the
   inclusion-proof verification (`merkleCorrect` as a per-leaf guarantee); and the live
   `Hash`↔`HashBytes` decode bridge for snapshot-root verification. Binding (1.4) and
   inclusion soundness (1.1) carried into the verify use-case.
+| `merkleRootVerifyHashSound` (+ `mapDecodeInjective`) (Stage 2.4 live)
+| live root-verification soundness at the A2ML `Hash` level: two block-hash vectors
+  that decode (`decAll dec`) and build trees with equal roots are equal — carries
+  `rootVerifySound` up across the decoder bridge. The theorem a redesigned
+  root-comparing verifier rests on. Named boundaries: `CollisionResistant h` (1.4),
+  `DecodeInjective dec` (hex wall, 2.3); stated for arbitrary `dec`, used at
+  `hashToBytes`.
 | `repairThenVerify` (+ `verifyRefsComplete`, `repairRefsConsistent`) (Stage 3.2)
 | whole-manifest repair ⇒ verify: `verifyRefsHelper (repairRefsPure s refs) refs =
   Right ()`. Lemma A `verifyRefsComplete` (completeness — exact converse of 2.2) ∘
@@ -215,10 +222,15 @@ re-exposes `merkleCorrect` (1.1) as a per-leaf verification guarantee; (3) *live
 bridge* — `hashToBytes` decodes A2ML `Hash` → Merkle `HashBytes` for snapshot-root
 verification, composing with `rootVerifySound`.
 +
-STILL OPEN (architectural): fully *replacing* the live `Hash`-based
-`verifyRefsHelper` with a tree build needs `hashToBytes`' correctness (Stage 2.3,
-bounded by the `unpack`/`pack` + `Bits8` walls) and a power-of-two leaf layout - a
-verify-path change, not a proof.
+SOUNDNESS PROVEN (`merkleRootVerifyHashSound`): replacing the live `Hash`-based
+`verifyRefsHelper` with a root comparison is now *sound* at the `Hash` level - two
+block-hash vectors that decode and yield equal Merkle roots are equal - carrying
+`rootVerifySound` up across the decoder bridge (`mapDecodeInjective`). Two named
+boundaries: `CollisionResistant h` (1.4) and `DecodeInjective dec` (the hex wall,
+2.3); stated for an arbitrary `dec`, instantiated at `hashToBytes`.
++
+STILL OPEN (plumbing, not a proof): padding an arbitrary-length block list to a
+power-of-two leaf `Vect` and switching the runtime verify path over - engineering.
 
 . *[DONE — 2.3]* Hex codec structural round-trip. The full
   `hexStringToBytes (bytesToHex bs) = Just bs` crosses two primitive walls —
