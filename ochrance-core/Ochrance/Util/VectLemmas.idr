@@ -3,7 +3,8 @@
 ||| Ochrance.Util.VectLemmas - reusable Vect/Fin lemmas for the Merkle proofs.
 |||
 ||| index-over-append (both halves), transport cancellation for `replace`,
-||| finToNat under transport, and the splitAt re-append law.
+||| finToNat under transport, the splitAt re-append law, splitAt surjective
+||| pairing, and injectivity of `replace`.
 module Ochrance.Util.VectLemmas
 
 import Data.Vect
@@ -47,3 +48,21 @@ splitAtConcat : {m : Nat} -> (k : Nat) -> (xs : Vect (k + m) e) ->
 splitAtConcat Z     xs        = Refl
 splitAtConcat (S k) (x :: xs) with (splitAt {m} k xs) proof eq
   _ | (tk, dr) = cong (x ::) (replace {p = \z => fst z ++ snd z = xs} eq (splitAtConcat k xs))
+
+||| Surjective pairing for `splitAt`: it equals the pair of its own projections.
+||| Lets a caller name the two halves as `fst`/`snd` of the split and still hand
+||| the split *equation* to a lemma that pattern-matches the pair.
+public export
+splitAtEta : {m : Nat} -> (k : Nat) -> (xs : Vect (k + m) e) ->
+             splitAt {m} k xs = (fst (splitAt {m} k xs), snd (splitAt {m} k xs))
+splitAtEta k xs with (splitAt {m} k xs)
+  _ | (l, r) = Refl
+
+||| `replace` along a (type-level) equality is injective: a transported pair of
+||| values is equal only if the originals were. This is the transport-back tool
+||| for the Merkle binding proof — having shown two *re-indexed* leaf vectors
+||| coincide, it cancels the `powerTwoSucc` transport to conclude the originals do.
+public export
+replaceInj : {0 p : a -> Type} -> {0 x, y : a} -> (eq : x = y) ->
+             {v, w : p x} -> replace {p} eq v = replace {p} eq w -> v = w
+replaceInj Refl prf = prf
