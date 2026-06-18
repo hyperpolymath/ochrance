@@ -31,6 +31,7 @@ modules = Ochrance.A2ML.Types
         , Ochrance.Filesystem.MerkleBinding
         , Ochrance.Filesystem.Verify
         , Ochrance.Filesystem.VerifyProof
+        , Ochrance.Filesystem.VerifyMerkle
         , Ochrance.Filesystem.Repair
         , Ochrance.Filesystem.RepairProof
         , Ochrance.FFI.Echidna

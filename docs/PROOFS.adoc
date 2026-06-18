@@ -115,6 +115,11 @@ The core is *clean*: all 19 `ochrance-core` modules carry `%default total` (the
 | pure repair primitive correctness over `repairBlockPure`: installs the hash at the
   index, preserves other indices and the count, idempotent. Wall-free (`Nat`
   structural `==`: `eqNatReflTrue` / `neqNatFalse`).
+| `rootFaithful` / `rootVerifySound` (Stage 2.4)
+| verify↔Merkle wiring: the Merkle root is a faithful fingerprint of the block-hash
+  vector — equal roots `<->` equal leaves (forward = `merkleBindingTree`; backward =
+  congruence). Licenses root-based verification; binding (1.4) carried into the verify
+  use-case.
 | `roundtripManifest` + sub-codecs (`algoRT`, `modeRT`, `refsRT`, `mpolRT`, …)
 | grammar invertibility: `decodeManifest (encodeManifest m) = Just m`.
 | `SatisfiesMinimum` / `attestedSatisfiesLax`
@@ -193,10 +198,17 @@ not the nested `isValidHexString`.
   block-present, hash-equal). `Ochrance.Filesystem.VerifyProof`. Machine-checked,
   axiom-free.
 +
-STILL OPEN (architectural, by design): "wired to `merkleCorrect`". The verifier
-compares per-ref hashes and never builds a Merkle tree, so checking against a Merkle
-*root* is a verify-path redesign, not a proof. Deferred to a design decision (would
-let `merkleBinding` carry the no-collision guarantee into verification).
+PARTLY WIRED (Stage 2.4): the *proof-level* wiring is done -
+`Ochrance.Filesystem.VerifyMerkle` proves the root is a FAITHFUL fingerprint of the
+block-hash vector: `rootFaithful` gives equal roots `<->` equal leaves (forward =
+`merkleBindingTree` / `CollisionResistant h`; backward = congruence), and
+`rootVerifySound` is the security reading - matching committed root ⇒ identical
+blocks. This is the theorem that *licenses* root-based verification, carrying Stage
+1.4's binding guarantee into the verification use-case.
++
+STILL OPEN (architectural): connecting that to the *live* `Hash`-based
+`verifyRefsHelper` needs the hex `Hash` <-> `HashBytes` conversion (Stage 2.3,
+bounded) and a power-of-two leaf layout - a verify-path change, not a proof.
 
 . *[DONE — 2.3]* Hex codec structural round-trip. The full
   `hexStringToBytes (bytesToHex bs) = Just bs` crosses two primitive walls —
