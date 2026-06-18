@@ -107,6 +107,10 @@ The core is *clean*: all 19 `ochrance-core` modules carry `%default total` (the
 | hex codec structural soundness: `parsePairs (bytesToHexChars bs) = Just bs`, given
   the isolated per-byte `Bits8` hypothesis `HexByteRoundtrip` (`String` pack/unpack
   wall left explicit).
+| `verifyRefsSound` (Stage 2.2)
+| verifier soundness: `verifyRefsHelper fs refs = Right ()` ⇒ `All (RefMatches fs) refs`
+  — every accepted ref names an in-range block whose stored hash equals the ref's
+  (four-guard per-ref inversion, Bool-level).
 | `roundtripManifest` + sub-codecs (`algoRT`, `modeRT`, `refsRT`, `mpolRT`, …)
 | grammar invertibility: `decodeManifest (encodeManifest m) = Just m`.
 | `SatisfiesMinimum` / `attestedSatisfiesLax`
@@ -176,15 +180,19 @@ on the head outcome *and* the tail fold, keeping each step definitional; (ii) `w
 abstracts only a hypothesis's WHNF, so case on `validateRef ref` (exposed there),
 not the nested `isValidHexString`.
 
-. *[2.2 — prereq refactor]* `verify` agrees with the manifest, wired to
-  `merkleCorrect`. BLOCKER: `verifyRefsHelper` is a `where`-local inside the
-  `VerifiedSubsystem` instance method and cannot be named in a theorem — lift it to
-  a top-level `public export` function first; then the ref-match inversion (success
-  ⇒ each `blockHash idx = Just h` with `h == ref.hash = True`) goes through like
-  2.1. The "wired to `merkleCorrect`" half is *architectural*: the current `verify`
-  compares ref hashes directly and never builds a Merkle tree, so connecting it to
-  `merkleCorrect` requires the verify path to construct one (a design change, not a
-  proof).
+. *[DONE — 2.2 (inversion); merkle-wiring deferred]* `verify` soundness. Lifted
+  `verifyRefsHelper` / `parseBlockIdx` out of the instance `where` to top-level
+  `public export`, then proved `verifyRefsSound`:
+  `verifyRefsHelper fs refs = Right () -> All (RefMatches fs) refs` — acceptance ⇒
+  every ref names an in-range block whose stored hash equals the ref's (Bool-level
+  `h == ref.hash = True`), by inverting the four per-ref guards (name-parse, range,
+  block-present, hash-equal). `Ochrance.Filesystem.VerifyProof`. Machine-checked,
+  axiom-free.
++
+STILL OPEN (architectural, by design): "wired to `merkleCorrect`". The verifier
+compares per-ref hashes and never builds a Merkle tree, so checking against a Merkle
+*root* is a verify-path redesign, not a proof. Deferred to a design decision (would
+let `merkleBinding` carry the no-collision guarantee into verification).
 
 . *[DONE — 2.3]* Hex codec structural round-trip. The full
   `hexStringToBytes (bytesToHex bs) = Just bs` crosses two primitive walls —
