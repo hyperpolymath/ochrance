@@ -229,8 +229,11 @@ block-hash vectors that decode and yield equal Merkle roots are equal - carrying
 boundaries: `CollisionResistant h` (1.4) and `DecodeInjective dec` (the hex wall,
 2.3); stated for an arbitrary `dec`, instantiated at `hashToBytes`.
 +
-STILL OPEN (plumbing, not a proof): padding an arbitrary-length block list to a
-power-of-two leaf `Vect` and switching the runtime verify path over - engineering.
+DONE (plumbing): `Ochrance.Filesystem.VerifyRoot` - `padToLength` + `nextPow2Exp` +
+`layoutLeaves` pad an arbitrary-length block list to a power-of-two leaf `Vect`;
+`verifyByRoot` / `verifyByRootHash` build the tree and compare roots; `fsBlockHashes`
++ `verifySnapshotRoot` are the runtime path against `FSSnapshot.rootHash`. Executable,
+total; its accept-on-match soundness is `merkleRootVerifyHashSound`.
 
 . *[DONE — 2.3]* Hex codec structural round-trip. The full
   `hexStringToBytes (bytesToHex bs) = Just bs` crosses two primitive walls —
