@@ -5,14 +5,14 @@
 [metadata]
 project = "ochrance"
 version = "0.1.0"
-last-updated = "2026-06-05"
+last-updated = "2026-06-18"
 status = "active"
-session = "machine-readable checkpoint — 2026-06-05"
+session = "machine-readable checkpoint — 2026-06-18 (Stage 1 complete: Merkle closure + crypto-binding interface)"
 
 [project-context]
 name = "Ochránce"
 purpose = """Neurosymbolic filesystem verification framework in Idris2 dependent types: a pluggable VerifiedSubsystem interface, A2ML attestation/audit markup, a verified Merkle tree with a combiner-generic soundness theorem, and ECHIDNA integration."""
-completion-percentage = 40
+completion-percentage = 48
 
 [position]
 phase = "implementation"   # design | implementation | testing | maintenance | archived
@@ -23,10 +23,14 @@ maturity = "experimental"  # experimental | alpha | beta | production | lts
 theorems = [
   "merkleCorrect / merkleCorrectWith — inclusion-proof soundness, generic over the hash combiner (XOR & BLAKE3 are instances)",
   "verifyProofReconstructs(With) — verify ≡ (root == reconstruct leaf prf)",
+  "buildGetLeaf (Stage 1.1) — buildMerkleTree/getLeafHash round-trip: getLeafHash (buildMerkleTree hs) (finToNat i) = Just (index i hs)",
+  "rootFoldLaw + foldRoot (Stage 1.2) — root characterisation: rootHashWith h (buildMerkleTree hs) = foldRoot h hs (combiner-generic)",
+  "rootHashBytesE_spec / verifyProofE_spec (Stage 1.3) — Either-monad folds compute the pure spec; production …IO_spec conditional on the explicit FFI-reflection hypothesis",
+  "merkleBinding / merkleBindingTree (Stage 1.4) — binding discharged against the typed CollisionResistant h (combiner injectivity): equal roots ⇒ equal leaves; sole assumption discharged in Stage 4",
   "roundtripManifest (+ algoRT/modeRT/refsRT/mpolRT codecs) — decodeManifest (encodeManifest m) = Just m",
   "SatisfiesMinimum / attestedSatisfiesLax — progressive-assurance threshold witness",
   "ABI Handle / createHandle — So (ptr /= 0) non-null invariant",
-  "supporting lemmas: reconstructAppendWith, powerTwoSucc, justInj",
+  "supporting lemmas: reconstructAppendWith, powerTwoSucc, justInj; VectLemmas (indexAppendLeft/Right, indexReplace, finToNatReplace, splitAtConcat, splitAtEta, replaceInj)",
 ]
 
 [route-to-mvp]
@@ -48,8 +52,8 @@ issues = [
 
 [critical-next-actions]
 actions = [
-  "Stage 1 (Opus): buildMerkleTree index/root-fold laws; bridge verifyProofIO/rootHashBytesIO to the …With spec",
-  "Introduce CollisionResistant h + merkleBinding interface (D2)",
+  "Stage 1 COMPLETE — 1.1 buildGetLeaf, 1.2 rootFoldLaw, 1.3 IO↔pure bridge, 1.4 merkleBinding/CollisionResistant — all machine-checked (idris2 0.8.0, --total)",
+  "Stage 2 (Opus→Sonnet): Validator soundness; verifyState agrees with the manifest (wired to merkleCorrect); hex codec round-trip (watch the String/Bits8 primitive wall — honest theorem may be propositional-over-decidable)",
   "Remove Idris-side crypto stubs and build + link libochrance.so into the flow (unblocks the crypto-integrity claim)",
   "Sync .machine_readable scaffold to rsr-template (ai/, compliance/, configs/, policies/, scripts/, 0.1-AI-MANIFEST, ENSAID_CONFIG, root README, root-allow) — pending template access",
 ]
