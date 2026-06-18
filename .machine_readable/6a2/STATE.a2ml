@@ -31,7 +31,7 @@ theorems = [
   "parsePairsRoundtrip (Stage 2.3) — hex codec structural soundness: parsePairs (bytesToHexChars bs) = Just bs, given isolated per-byte Bits8 hypothesis (pack/unpack wall explicit)",
   "verifyRefsSound (Stage 2.2) — verifier soundness: verifyRefsHelper fs refs = Right () ⇒ All (RefMatches fs) refs (four-guard per-ref inversion; merkle-root wiring deferred as architectural)",
   "repairBlock{Sets,Preserves,NumBlocks,Idempotent} (Stage 3.1) — pure repair primitive correctness over repairBlockPure: installs hash at index, preserves others + count, idempotent (wall-free Nat == via eqNatReflTrue/neqNatFalse)",
-  "rootFaithful / rootVerifySound (Stage 2.4) — verify↔Merkle wiring: Merkle root is a faithful fingerprint of the block-hash vector (equal roots <-> equal leaves; forward = merkleBindingTree, backward = cong). Licenses root-based verification",
+  "rootFaithful / rootVerifySound / inclusionVerifySound / hashToBytes (Stage 2.4) — verify↔Merkle wiring, 3 modes generic→granular: root-equivalence (faithful fingerprint via merkleBindingTree), inclusion-proof (merkleCorrect per-leaf), live Hash↔HashBytes bridge for snapshot-root",
   "roundtripManifest (+ algoRT/modeRT/refsRT/mpolRT codecs) — decodeManifest (encodeManifest m) = Just m",
   "SatisfiesMinimum / attestedSatisfiesLax — progressive-assurance threshold witness",
   "ABI Handle / createHandle — So (ptr /= 0) non-null invariant",
