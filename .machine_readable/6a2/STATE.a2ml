@@ -7,7 +7,7 @@ project = "ochrance"
 version = "0.1.0"
 last-updated = "2026-06-18"
 status = "active"
-session = "machine-readable checkpoint — 2026-06-18 (Stage 1 complete; Stage 2 core + 2.4 verify↔Merkle wiring; Stage 3.1 pure repair correctness)"
+session = "machine-readable checkpoint — 2026-06-18 (Stage 1 complete; Stage 2 core + 2.4 verify↔Merkle wiring; Stage 3.1 pure repair + 3.2 repair⇒verify)"
 
 [project-context]
 name = "Ochránce"
@@ -31,6 +31,7 @@ theorems = [
   "parsePairsRoundtrip (Stage 2.3) — hex codec structural soundness: parsePairs (bytesToHexChars bs) = Just bs, given isolated per-byte Bits8 hypothesis (pack/unpack wall explicit)",
   "verifyRefsSound (Stage 2.2) — verifier soundness: verifyRefsHelper fs refs = Right () ⇒ All (RefMatches fs) refs (four-guard per-ref inversion; merkle-root wiring deferred as architectural)",
   "repairBlock{Sets,Preserves,NumBlocks,Idempotent} (Stage 3.1) — pure repair primitive correctness over repairBlockPure: installs hash at index, preserves others + count, idempotent (wall-free Nat == via eqNatReflTrue/neqNatFalse)",
+  "repairThenVerify (Stage 3.2) — whole-manifest repair ⇒ verify: verifyRefsHelper (repairRefsPure s refs) refs = Right (). Lemma A verifyRefsComplete (completeness, converse of 2.2) ∘ Lemma B repairRefsConsistent (install+no-clobber via repairBlockSets/repairRefsPurePreserves). Honest hyps: GoodRefs (distinct in-range names) + hashRefl (primitive Hash == reflexivity)",
   "rootFaithful / rootVerifySound / inclusionVerifySound / hashToBytes (Stage 2.4) — verify↔Merkle wiring, 3 modes generic→granular: root-equivalence (faithful fingerprint via merkleBindingTree), inclusion-proof (merkleCorrect per-leaf), live Hash↔HashBytes bridge for snapshot-root",
   "roundtripManifest (+ algoRT/modeRT/refsRT/mpolRT codecs) — decodeManifest (encodeManifest m) = Just m",
   "SatisfiesMinimum / attestedSatisfiesLax — progressive-assurance threshold witness",
@@ -59,7 +60,8 @@ issues = [
 actions = [
   "Stage 1 COMPLETE — 1.1 buildGetLeaf, 1.2 rootFoldLaw, 1.3 IO↔pure bridge, 1.4 merkleBinding/CollisionResistant — all machine-checked (idris2 0.8.0, --total)",
   "Stage 2 provable core COMPLETE — 2.1 validateManifestSound, 2.2 verifyRefsSound, 2.3 parsePairsRoundtrip; all machine-checked. DEFERRED (architectural decision): wire verify to merkleCorrect — the verify path builds no Merkle tree today",
-  "Stage 3.1 DONE — pure repair primitive correctness (repairBlockPure factored out; sets/preserves/numBlocks/idempotent machine-checked). NEXT 3.2: whole-manifest repair ⇒ verifyRefsHelper passes (needs distinct-in-range ref-name precondition + isolated Hash-reflexivity hypothesis)",
+  "Stage 3.1 DONE — pure repair primitive correctness (repairBlockPure factored out; sets/preserves/numBlocks/idempotent machine-checked)",
+  "Stage 3.2 DONE — whole-manifest repair ⇒ verify (repairThenVerify, module RepairVerify). repairRefsPure folds repairBlockPure; proof = verifyRefsComplete ∘ repairRefsConsistent; GoodRefs precondition + hashRefl hypothesis, both named. NEXT: architectural live-verifier Merkle redesign (verifyRefsHelper builds a tree via hashToBytes + rootVerifySound; bounded by hex walls + power-of-2 layout)",
   "Stage 2.4 DONE — verify↔Merkle proof-level wiring (rootFaithful/rootVerifySound): the root is a faithful fingerprint of the blocks (binding). REMAINING: connect to the live Hash-based verifyRefsHelper via hex Hash<->HashBytes conversion (2.3-bounded) + power-of-two layout (verify-path change, not a proof)",
   "Stage 3.2 (next provable): whole-manifest repairPure ⇒ verifyRefsHelper accepts (distinct-in-range ref-name precondition + isolated Hash-reflexivity hypothesis)",
   "Remove Idris-side crypto stubs and build + link libochrance.so into the flow (unblocks the crypto-integrity claim)",

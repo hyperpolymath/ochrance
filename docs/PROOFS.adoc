@@ -121,6 +121,13 @@ The core is *clean*: all 19 `ochrance-core` modules carry `%default total` (the
   inclusion-proof verification (`merkleCorrect` as a per-leaf guarantee); and the live
   `Hash`↔`HashBytes` decode bridge for snapshot-root verification. Binding (1.4) and
   inclusion soundness (1.1) carried into the verify use-case.
+| `repairThenVerify` (+ `verifyRefsComplete`, `repairRefsConsistent`) (Stage 3.2)
+| whole-manifest repair ⇒ verify: `verifyRefsHelper (repairRefsPure s refs) refs =
+  Right ()`. Lemma A `verifyRefsComplete` (completeness — exact converse of 2.2) ∘
+  Lemma B `repairRefsConsistent` (repair installs each ref's hash and protects it from
+  later repairs, via `repairBlockSets` / `repairRefsPurePreserves`). Honest hypotheses:
+  `GoodRefs` (distinct in-range parseable names) and `hashRefl` (primitive `Hash` `==`
+  reflexivity).
 | `roundtripManifest` + sub-codecs (`algoRT`, `modeRT`, `refsRT`, `mpolRT`, …)
 | grammar invertibility: `decodeManifest (encodeManifest m) = Just m`.
 | `SatisfiesMinimum` / `attestedSatisfiesLax`
@@ -242,13 +249,16 @@ well-founded, not vacuous.
   ledger's "idempotence as a proof", delivered. The index test is `Nat` `==`
   (structural — `eqNatReflTrue` / `neqNatFalse`), so wall-free, unlike the primitive
   `Hash` `==`.
-. *[3.2 — next]* Whole-manifest repair ⇒ verify:
-  `verifyRefsHelper (repairPure s m) m.refs = Right ()`. Builds on 2.2's
-  `verifyRefsHelper` and the 3.1 lemmas, but needs (a) a precondition that ref names
-  parse to *distinct* in-range indices (so the rebuilt map is per-ref consistent),
-  and (b) the isolated `Hash`-reflexivity hypothesis `(h == h) = True` — the same
-  primitive `==` wall as `merkleCorrect`'s residual step — named explicitly, never
-  faked.
+. *[DONE — 3.2]* Whole-manifest repair ⇒ verify:
+  `verifyRefsHelper (repairRefsPure s refs) refs = Right ()`
+  (`Ochrance.Filesystem.RepairVerify`, `repairThenVerify`). Composes 2.2's verifier
+  with the 3.1 lemmas via completeness (`verifyRefsComplete`, the converse of
+  `verifyRefsSound`) ∘ repair-consistency (`repairRefsConsistent`). The two needed
+  boundaries are named, not faked: precondition `GoodRefs` (ref names parse to
+  *distinct* in-range indices — else a later repair clobbers an earlier ref's block,
+  consumed in the no-clobber lemma `repairRefsPurePreserves`), and the isolated
+  `Hash`-reflexivity hypothesis `hashRefl : (h == h) = True` (the primitive `==` wall,
+  as in `merkleCorrect`'s residual step). Machine-checked, totality-clean.
 . Harvest framework's mode-indexed Interface; state the `VerifiedSubsystem` law and
   prove the FSState instance satisfies it.
 +
