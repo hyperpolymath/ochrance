@@ -91,6 +91,9 @@ The core is *clean*: all 19 `ochrance-core` modules carry `%default total` (the
   `indexReplace`, `finToNatReplace`, `splitAtConcat`.
 | `rootFoldLaw` + `foldRoot` (Stage 1.2)
 | root characterisation: `rootHashWith h (buildMerkleTree hs) = foldRoot h hs` (combiner-generic).
+| `rootHashBytesE_spec` / `verifyProofE_spec` (Stage 1.3)
+| Either-monad folds compute the pure spec on success; production `…IO_spec`
+  theorems hold conditionally on the explicit FFI-reflection hypothesis (`MerkleIO`).
 | `roundtripManifest` + sub-codecs (`algoRT`, `modeRT`, `refsRT`, `mpolRT`, …)
 | grammar invertibility: `decodeManifest (encodeManifest m) = Just m`.
 | `SatisfiesMinimum` / `attestedSatisfiesLax`
@@ -115,10 +118,14 @@ design change or a model downshift mid-stage.
   (`rootFoldLaw` + `foldRoot` in `Ochrance.Filesystem.MerkleBuild`) — the root is a
   deterministic, representation-independent fold over the leaves. Combiner-generic;
   prerequisite of the binding argument. Machine-checked, axiom-free.
-. *[1.3] IO↔pure bridge*: prove `verifyProofIO` / `rootHashBytesIO` compute the
-  `…With (hashPairBlake3 …)` spec modulo the `Either` allocation-failure plumbing,
-  against a typed combiner-equality hypothesis — connecting the proven theorem to
-  the *production* crypto path. (The estate-wide spine; see "The IO↔pure bridge".)
+. *[DONE — 1.3]* IO↔pure bridge (decompose): the pure `Either`-monad mirrors
+  `rootHashBytesE` / `verifyProofE` provably compute the spec — `rootHashBytesE_spec`:
+  `= Right (rootHashWith h t)`, `verifyProofE_spec`: `= Right (verifyProofWith h …)`
+  when `cf` models `h` — fully machine-checked ("modulo the Either plumbing"). The
+  opaque-IO step (IO fold = `pure` of its pure mirror) is the *sole* assumed boundary,
+  passed as an explicit `reflect` hypothesis (no `postulate`/`believe_me`); the
+  production theorems `rootHashBytesIO_spec` / `verifyProofIO_spec` hold conditionally
+  on it. `Ochrance.Filesystem.MerkleIO`.
 . *[1.4] D2*: introduce `CollisionResistant h` and state `merkleBinding`
   (typed hypothesis / interface; discharged in Stage 4).
 +
@@ -225,8 +232,8 @@ transports to `F` by `rewrite`. Never optimise unproven code (nothing guards it)
 
 | root combiner
 | real BLAKE3 in IO (vs. abstract `h`)
-| the Stage 1.3 bridge lemma
-| after 1.3
+| `rootHashBytesIO_spec` / `verifyProofIO_spec` (given the FFI-reflection hypothesis)
+| unlocked (Stage 1.3)
 
 | A2ML production parser
 | any fast String parser

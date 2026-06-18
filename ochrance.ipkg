@@ -25,6 +25,7 @@ modules = Ochrance.A2ML.Types
         , Ochrance.Filesystem.Merkle
         , Ochrance.Util.VectLemmas
         , Ochrance.Filesystem.MerkleBuild
+        , Ochrance.Filesystem.MerkleIO
         , Ochrance.Filesystem.Verify
         , Ochrance.Filesystem.Repair
         , Ochrance.FFI.Echidna
