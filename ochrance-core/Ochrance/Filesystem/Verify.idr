@@ -192,6 +192,56 @@ verify fs validManifest = do
     head' (x :: _) = Just x
 
 --------------------------------------------------------------------------------
+-- Pure ref-checking (top-level so it can be reasoned about; see VerifyProof)
+--------------------------------------------------------------------------------
+
+||| Split a string on a separator character.
+splitOn : Char -> String -> List String
+splitOn sep s = splitHelper (unpack s) [] []
+  where
+    splitHelper : List Char -> List Char -> List String -> List String
+    splitHelper [] acc res = reverse (pack (reverse acc) :: res)
+    splitHelper (c :: cs) acc res =
+      if c == sep
+         then splitHelper cs [] (pack (reverse acc) :: res)
+         else splitHelper cs (c :: acc) res
+
+||| Parse a string of digits to a Nat.
+parseNatHelper : String -> Maybe Nat
+parseNatHelper s = case all isDigit (unpack s) of
+  False => Nothing
+  True => Just (cast s)
+
+||| Parse a "block_N" ref name to its block index.
+public export
+parseBlockIdx : String -> Maybe BlockIndex
+parseBlockIdx name =
+  let parts = filter (\str => str /= "") (splitOn '_' name) in
+  case parts of
+    ["block", numStr] => parseNatHelper numStr
+    _ => Nothing
+
+||| Check every manifest ref against the filesystem's pre-computed block hashes:
+||| each ref name must parse to an in-range block index whose stored hash equals
+||| the ref's hash. `Right ()` iff all refs match. (`VerifyProof.verifyRefsSound`
+||| inverts this to the per-ref match witness.)
+public export
+verifyRefsHelper : FSState -> List Ref -> Either OchranceError ()
+verifyRefsHelper _ [] = Right ()
+verifyRefsHelper st (ref :: refs) =
+  case parseBlockIdx ref.name of
+    Nothing => Left (QError (InvalidManifestPath ("Invalid ref name: " ++ ref.name)))
+    Just idx =>
+      if idx >= st.numBlocks
+         then Left (QError (InvalidManifestPath ("Block index out of range: " ++ show idx)))
+         else case st.blockHash idx of
+           Nothing => Left (ZError (FileNotFound ("Block " ++ show idx)))
+           Just actualHash =>
+             if actualHash == ref.hash
+                then verifyRefsHelper st refs
+                else Left (PError (HashMismatch ref.name (show ref.hash) (show actualHash)))
+
+--------------------------------------------------------------------------------
 -- VerifiedSubsystem Instance
 --------------------------------------------------------------------------------
 
@@ -238,43 +288,6 @@ implementation VerifiedSubsystem FSState where
       head' : List a -> Maybe a
       head' [] = Nothing
       head' (x :: _) = Just x
-
-      splitOn : Char -> String -> List String
-      splitOn sep s = splitHelper (unpack s) [] []
-        where
-          splitHelper : List Char -> List Char -> List String -> List String
-          splitHelper [] acc res = reverse (pack (reverse acc) :: res)
-          splitHelper (c :: cs) acc res =
-            if c == sep
-               then splitHelper cs [] (pack (reverse acc) :: res)
-               else splitHelper cs (c :: acc) res
-
-      parseNatHelper : String -> Maybe Nat
-      parseNatHelper s = case all isDigit (unpack s) of
-        False => Nothing
-        True => Just (cast s)
-
-      parseBlockIdx : String -> Maybe BlockIndex
-      parseBlockIdx name =
-        let parts = filter (\str => str /= "") (splitOn '_' name) in
-        case parts of
-          ["block", numStr] => parseNatHelper numStr
-          _ => Nothing
-
-      verifyRefsHelper : FSState -> List Ref -> Either OchranceError ()
-      verifyRefsHelper _ [] = Right ()
-      verifyRefsHelper st (ref :: refs) =
-        case parseBlockIdx ref.name of
-          Nothing => Left (QError (InvalidManifestPath ("Invalid ref name: " ++ ref.name)))
-          Just idx =>
-            if idx >= st.numBlocks
-               then Left (QError (InvalidManifestPath ("Block index out of range: " ++ show idx)))
-               else case st.blockHash idx of
-                 Nothing => Left (ZError (FileNotFound ("Block " ++ show idx)))
-                 Just actualHash =>
-                   if actualHash == ref.hash
-                      then verifyRefsHelper st refs
-                      else Left (PError (HashMismatch ref.name (show ref.hash) (show actualHash)))
 
   -- Repair implementation: delegates to linearRepairFromManifest
   repair = \fs, manifest => do
