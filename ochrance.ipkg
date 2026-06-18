@@ -32,6 +32,7 @@ modules = Ochrance.A2ML.Types
         , Ochrance.Filesystem.Verify
         , Ochrance.Filesystem.VerifyProof
         , Ochrance.Filesystem.VerifyMerkle
+        , Ochrance.Filesystem.VerifyRoot
         , Ochrance.Filesystem.Repair
         , Ochrance.Filesystem.RepairProof
         , Ochrance.Filesystem.RepairVerify
