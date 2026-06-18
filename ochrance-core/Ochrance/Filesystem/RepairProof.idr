@@ -55,6 +55,7 @@ repairBlockNumBlocks s i h = Refl
 ||| `Nat` inequality reflects as `== = False` (structural counterpart of the
 ||| primitive-equality wall). Used to drive `repairBlockPreserves` on the `j /= i`
 ||| branch of idempotence.
+export
 neqNatFalse : (m, n : Nat) -> Not (m = n) -> (m == n) = False
 neqNatFalse Z     Z     ctra = absurd (ctra Refl)
 neqNatFalse Z     (S _) _    = Refl
