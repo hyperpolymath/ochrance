@@ -44,11 +44,13 @@ Show ValidationError where
 --------------------------------------------------------------------------------
 
 ||| Check if a version string is supported
+public export
 isVersionSupported : String -> Bool
 isVersionSupported "0.1.0" = True
 isVersionSupported _       = False
 
 ||| Check if a hash value contains only valid hex characters
+public export
 isValidHexString : String -> Bool
 isValidHexString s = all isHexChar (unpack s)
   where
@@ -56,6 +58,7 @@ isValidHexString s = all isHexChar (unpack s)
     isHexChar c = isHexDigit c || c == '.'
 
 ||| Validate a single reference's hash
+public export
 validateRef : Ref -> Either ValidationError ()
 validateRef ref =
   if not (isValidHexString ref.hash.value)
