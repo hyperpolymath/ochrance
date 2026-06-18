@@ -103,6 +103,10 @@ The core is *clean*: all 19 `ochrance-core` modules carry `%default total` (the
 | validator soundness: `validateManifest m = Right vm` ⇒ supported version,
   non-empty subsystem, and `All RefValid m.refs` (well-formed-hex hashes). Invariants
   at the wall-free Bool level; Either-pipeline inversion.
+| `parsePairsRoundtrip` (Stage 2.3)
+| hex codec structural soundness: `parsePairs (bytesToHexChars bs) = Just bs`, given
+  the isolated per-byte `Bits8` hypothesis `HexByteRoundtrip` (`String` pack/unpack
+  wall left explicit).
 | `roundtripManifest` + sub-codecs (`algoRT`, `modeRT`, `refsRT`, `mpolRT`, …)
 | grammar invertibility: `decodeManifest (encodeManifest m) = Just m`.
 | `SatisfiesMinimum` / `attestedSatisfiesLax`
@@ -182,14 +186,17 @@ not the nested `isValidHexString`.
   `merkleCorrect` requires the verify path to construct one (a design change, not a
   proof).
 
-. *[2.3 — bounded]* Hex codec round-trip `hexStringToBytes (bytesToHex bs) = Just bs`.
-  Primitive-wall-dominated: (a) `unpack (pack xs) = xs` has no equational theory
-  (the *same wall* as the production lexer round-trip); (b) the per-byte fact rests
-  on primitive `Bits8` `div`/`mod`/`*`/`+`. The clean content is the List-`Char`
-  recursion `parsePairs (concatMap toPair bs) = Just bs` *given* an isolated
-  per-byte hypothesis (the Bits8 boundary, IO↔pure-bridge style) — but
-  `bytesToHex`'s `toPair` is a `where`-local and `parsePairs` is private, so this
-  too needs a lift first. Honestly bounded, like the production-pipeline round-trip.
+. *[DONE — 2.3]* Hex codec structural round-trip. The full
+  `hexStringToBytes (bytesToHex bs) = Just bs` crosses two primitive walls —
+  `unpack∘pack` (no equational theory; the lexer-round-trip wall) and per-byte
+  `Bits8` `div`/`mod`. The honest, axiom-free *core* is now proven:
+  `parsePairsRoundtrip` shows `parsePairs (bytesToHexChars bs) = Just bs` —
+  `parsePairs` inverts `bytesToHexChars` exactly — *given* the isolated per-byte
+  hypothesis `HexByteRoundtrip` (the `Bits8` boundary, named not faked,
+  IO↔pure-bridge style). Required lifting `toPair`→`toHexPair` and `bytesToHexChars`
+  to top-level (the builder recurses explicitly, dodging the non-reducing
+  `concatMap` Monoid layer — same hazard as `traverse_`) and exposing `parsePairs`.
+  `Ochrance.Util.HexProof`. Machine-checked.
 
 === Stage 3 — Repair correctness (L3, linear types)  [model: Opus]
 

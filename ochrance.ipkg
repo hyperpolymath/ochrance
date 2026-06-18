@@ -22,6 +22,7 @@ modules = Ochrance.A2ML.Types
         , Ochrance.Framework.Progressive
         , Ochrance.FFI.Crypto
         , Ochrance.Util.Hex
+        , Ochrance.Util.HexProof
         , Ochrance.Filesystem.Types
         , Ochrance.Filesystem.Merkle
         , Ochrance.Util.VectLemmas

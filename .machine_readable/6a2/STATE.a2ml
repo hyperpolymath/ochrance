@@ -28,6 +28,7 @@ theorems = [
   "rootHashBytesE_spec / verifyProofE_spec (Stage 1.3) — Either-monad folds compute the pure spec; production …IO_spec conditional on the explicit FFI-reflection hypothesis",
   "merkleBinding / merkleBindingTree (Stage 1.4) — binding discharged against the typed CollisionResistant h (combiner injectivity): equal roots ⇒ equal leaves; sole assumption discharged in Stage 4",
   "validateManifestSound (Stage 2.1) — validator soundness: accepted manifest ⇒ supported version, non-empty subsystem, All RefValid refs (Bool-level, Either-pipeline inversion)",
+  "parsePairsRoundtrip (Stage 2.3) — hex codec structural soundness: parsePairs (bytesToHexChars bs) = Just bs, given isolated per-byte Bits8 hypothesis (pack/unpack wall explicit)",
   "roundtripManifest (+ algoRT/modeRT/refsRT/mpolRT codecs) — decodeManifest (encodeManifest m) = Just m",
   "SatisfiesMinimum / attestedSatisfiesLax — progressive-assurance threshold witness",
   "ABI Handle / createHandle — So (ptr /= 0) non-null invariant",
