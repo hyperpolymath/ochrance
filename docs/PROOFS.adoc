@@ -52,8 +52,10 @@ Three repositories are in scope. "Verification" means something different in eac
 | *D2 — Crypto binding as a typed interface*
 | The security half of the Merkle argument (collision resistance) is modelled as
   an Idris hypothesis `CollisionResistant h`, and the binding theorem is
-  discharged against it — not left as prose. Stubbed in Stage 1, discharged in the
-  final stage.
+  discharged against it — not left as prose. It is the irreducible cryptographic
+  trust root (pigeonhole-false for a compressing combiner, so never provable); Stage 4
+  isolates it and proves it has teeth (`MerkleAssumption`), rather than faking a
+  discharge.
 
 | *D3 — svalinn: migrate before proving*
 | Prove where the language is final; migrate-then-prove where it is changing.
@@ -98,7 +100,14 @@ The core is *clean*: all 19 `ochrance-core` modules carry `%default total` (the
 | binding *discharged against* the typed hypothesis `CollisionResistant h` (combiner
   injectivity): `foldRoot h xs = foldRoot h ys -> xs = ys`, and the built-tree-root
   corollary. Combiner injectivity lifted through the fold; `CollisionResistant h` the
-  sole assumption (`MerkleBinding`), discharged for the concrete combiner in Stage 4.
+  sole assumption (`MerkleBinding`) — the irreducible crypto trust root, isolated (not
+  dischargeable) in Stage 4 (`MerkleAssumption`).
+| `constNotCollisionResistant` (Stage 4)
+| the binding hypothesis HAS TEETH: a degenerate combiner (ignores its inputs) provably
+  fails `CollisionResistant` — `Not (CollisionResistant constCombiner)`. Confirms the
+  hypothesis is a genuine constraint; full injectivity is pigeonhole-false for any
+  compressing combiner, so CR is the irreducible cryptographic assumption, never proved
+  (`MerkleAssumption`).
 | `validateManifestSound` (Stage 2.1)
 | validator soundness: `validateManifest m = Right vm` ⇒ supported version,
   non-empty subsystem, and `All RefValid m.refs` (well-formed-hex hashes). Invariants
@@ -173,7 +182,8 @@ design change or a model downshift mid-stage.
   `merkleBindingTree` the built-tree-root corollary (via `rootFoldLaw`). The proof
   lifts combiner injectivity through the fold (Stage 1.2 is its prerequisite);
   `CollisionResistant h` is the *sole* assumed hypothesis — no `postulate` /
-  `believe_me` — discharged for the concrete combiner in Stage 4. New reusable
+  `believe_me` — and the irreducible cryptographic trust root (Stage 4 isolates it,
+  does not discharge it — pigeonhole-false; see `MerkleAssumption`). New reusable
   lemmas `splitAtEta` / `replaceInj` in `VectLemmas`.
   `Ochrance.Filesystem.MerkleBinding`. Machine-checked (idris2 0.8.0, `--total`).
   *This pulls the Stage 4 binding-discharge forward to its hypothesis.*
@@ -283,10 +293,12 @@ possible signature changes to `Repair.idr`.
 === Stage 4 — Completeness, binding discharge, write-up  [model: Sonnet; Opus if binding is hard]
 
 . Merkle *completeness* (converse of soundness): in-range leaf ⇒ a proof exists.
-. *D2 discharge*: the binding argument is *already proven against*
-  `CollisionResistant h` (Stage 1.4 — `merkleBinding` / `merkleBindingTree`); what
-  remains is discharging the hypothesis itself for the concrete cryptographic
-  combiner, or stating it as the explicit, irreducible crypto axiom.
+. *[DONE — D2] CR isolated, not discharged*: the binding argument is proven against
+  `CollisionResistant h` (Stage 1.4). The hypothesis itself CANNOT be discharged — full
+  injectivity is pigeonhole-false for a compressing combiner — so Stage 4 isolates it
+  as the irreducible cryptographic trust root and proves it has teeth
+  (`constNotCollisionResistant`, `MerkleAssumption`). Optional follow-on engineering:
+  wire the real Zig/FFI combiner in and declare CR as its explicit assumption.
 . Progressive monotonicity: the remaining `SatisfiesMinimum` cases (all `Refl`).
 . Final ledger pass; thesis-aligned summary (ICFP/PLDI/SOSP framing).
 

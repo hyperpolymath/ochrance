@@ -26,7 +26,8 @@ theorems = [
   "buildGetLeaf (Stage 1.1) — buildMerkleTree/getLeafHash round-trip: getLeafHash (buildMerkleTree hs) (finToNat i) = Just (index i hs)",
   "rootFoldLaw + foldRoot (Stage 1.2) — root characterisation: rootHashWith h (buildMerkleTree hs) = foldRoot h hs (combiner-generic)",
   "rootHashBytesE_spec / verifyProofE_spec (Stage 1.3) — Either-monad folds compute the pure spec; production …IO_spec conditional on the explicit FFI-reflection hypothesis",
-  "merkleBinding / merkleBindingTree (Stage 1.4) — binding discharged against the typed CollisionResistant h (combiner injectivity): equal roots ⇒ equal leaves; sole assumption discharged in Stage 4",
+  "merkleBinding / merkleBindingTree (Stage 1.4) — binding discharged against the typed CollisionResistant h (combiner injectivity): equal roots ⇒ equal leaves; sole assumption, isolated (NOT dischargeable — pigeonhole) in Stage 4",
+  "constNotCollisionResistant (Stage 4) — the binding hypothesis HAS TEETH: a degenerate combiner provably fails CollisionResistant (Not (CollisionResistant constCombiner)). Full injectivity is pigeonhole-false for any compressing 64→32-byte combiner, so CR is the irreducible cryptographic assumption, never proved (module MerkleAssumption). Inaccurate 'Stage 4 discharges it' wording corrected across MerkleBinding/PROOFS",
   "validateManifestSound (Stage 2.1) — validator soundness: accepted manifest ⇒ supported version, non-empty subsystem, All RefValid refs (Bool-level, Either-pipeline inversion)",
   "parsePairsRoundtrip (Stage 2.3) — hex codec structural soundness: parsePairs (bytesToHexChars bs) = Just bs, given isolated per-byte Bits8 hypothesis (pack/unpack wall explicit)",
   "verifyRefsSound (Stage 2.2) — verifier soundness: verifyRefsHelper fs refs = Right () ⇒ All (RefMatches fs) refs (four-guard per-ref inversion; merkle-root wiring deferred as architectural)",
@@ -46,7 +47,7 @@ milestones = [
   "Stage 1 — Merkle closure (buildMerkleTree correctness, IO↔pure bridge) + crypto-binding interface (CollisionResistant)",
   "Stage 2 — Verify + Validator soundness; hex codec round-trip",
   "Stage 3 — Repair correctness (L3 linear types); harvest framework's mode-indexed Interface",
-  "Stage 4 — Merkle completeness, binding discharge, progressive monotonicity, write-up",
+  "Stage 4 — Merkle completeness, binding-assumption ISOLATION (CR is pigeonhole-false, not dischargeable — DONE via constNotCollisionResistant), progressive monotonicity, write-up",
 ]
 
 [blockers-and-issues]
@@ -65,6 +66,7 @@ actions = [
   "Stage 3.2 DONE — whole-manifest repair ⇒ verify (repairThenVerify, module RepairVerify). repairRefsPure folds repairBlockPure; proof = verifyRefsComplete ∘ repairRefsConsistent; GoodRefs precondition + hashRefl hypothesis, both named",
   "Live-verifier Merkle redesign SOUNDNESS DONE (merkleRootVerifyHashSound) — root-comparing verifier is sound at the Hash level, modulo named CollisionResistant + DecodeInjective",
   "Live-verifier PLUMBING DONE (module VerifyRoot) — padToLength/nextPow2Exp/layoutLeaves pad to power-of-2 leaf Vect; verifyByRoot/verifyByRootHash build tree + compare roots; fsBlockHashes/verifySnapshotRoot = runtime path vs FSSnapshot.rootHash. Executable, total; accept-on-match soundness = merkleRootVerifyHashSound",
+  "Stage 4 DONE (honest isolation) — CollisionResistant cannot be discharged (pigeonhole-false for compressing combiner); isolated as the irreducible crypto assumption + proved it has teeth (constNotCollisionResistant, module MerkleAssumption). Optional follow-on: wire real Zig/FFI combiner + declare CR as its explicit assumption",
   "Stage 2.4 DONE — verify↔Merkle proof-level wiring (rootFaithful/rootVerifySound): the root is a faithful fingerprint of the blocks (binding). REMAINING: connect to the live Hash-based verifyRefsHelper via hex Hash<->HashBytes conversion (2.3-bounded) + power-of-two layout (verify-path change, not a proof)",
   "Stage 3.2 (next provable): whole-manifest repairPure ⇒ verifyRefsHelper accepts (distinct-in-range ref-name precondition + isolated Hash-reflexivity hypothesis)",
   "Remove Idris-side crypto stubs and build + link libochrance.so into the flow (unblocks the crypto-integrity claim)",
