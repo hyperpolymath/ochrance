@@ -115,11 +115,12 @@ The core is *clean*: all 19 `ochrance-core` modules carry `%default total` (the
 | pure repair primitive correctness over `repairBlockPure`: installs the hash at the
   index, preserves other indices and the count, idempotent. Wall-free (`Nat`
   structural `==`: `eqNatReflTrue` / `neqNatFalse`).
-| `rootFaithful` / `rootVerifySound` (Stage 2.4)
-| verify↔Merkle wiring: the Merkle root is a faithful fingerprint of the block-hash
-  vector — equal roots `<->` equal leaves (forward = `merkleBindingTree`; backward =
-  congruence). Licenses root-based verification; binding (1.4) carried into the verify
-  use-case.
+| `rootFaithful` / `rootVerifySound` / `inclusionVerifySound` / `hashToBytes` (Stage 2.4)
+| verify↔Merkle wiring, three modes (generic→granular): root-equivalence (faithful
+  fingerprint, equal roots `<->` equal leaves, via `merkleBindingTree`);
+  inclusion-proof verification (`merkleCorrect` as a per-leaf guarantee); and the live
+  `Hash`↔`HashBytes` decode bridge for snapshot-root verification. Binding (1.4) and
+  inclusion soundness (1.1) carried into the verify use-case.
 | `roundtripManifest` + sub-codecs (`algoRT`, `modeRT`, `refsRT`, `mpolRT`, …)
 | grammar invertibility: `decodeManifest (encodeManifest m) = Just m`.
 | `SatisfiesMinimum` / `attestedSatisfiesLax`
@@ -198,17 +199,19 @@ not the nested `isValidHexString`.
   block-present, hash-equal). `Ochrance.Filesystem.VerifyProof`. Machine-checked,
   axiom-free.
 +
-PARTLY WIRED (Stage 2.4): the *proof-level* wiring is done -
-`Ochrance.Filesystem.VerifyMerkle` proves the root is a FAITHFUL fingerprint of the
-block-hash vector: `rootFaithful` gives equal roots `<->` equal leaves (forward =
-`merkleBindingTree` / `CollisionResistant h`; backward = congruence), and
-`rootVerifySound` is the security reading - matching committed root ⇒ identical
-blocks. This is the theorem that *licenses* root-based verification, carrying Stage
-1.4's binding guarantee into the verification use-case.
+WIRED (Stage 2.4), three modes generic→granular in `Ochrance.Filesystem.VerifyMerkle`:
+(1) *root-equivalence* — `rootFaithful` proves the root is a FAITHFUL fingerprint
+(equal roots `<->` equal leaves; forward = `merkleBindingTree` / `CollisionResistant
+h`, backward = congruence) and `rootVerifySound` is the security reading (matching
+committed root ⇒ identical blocks); (2) *inclusion-proof* — `inclusionVerifySound`
+re-exposes `merkleCorrect` (1.1) as a per-leaf verification guarantee; (3) *live
+bridge* — `hashToBytes` decodes A2ML `Hash` → Merkle `HashBytes` for snapshot-root
+verification, composing with `rootVerifySound`.
 +
-STILL OPEN (architectural): connecting that to the *live* `Hash`-based
-`verifyRefsHelper` needs the hex `Hash` <-> `HashBytes` conversion (Stage 2.3,
-bounded) and a power-of-two leaf layout - a verify-path change, not a proof.
+STILL OPEN (architectural): fully *replacing* the live `Hash`-based
+`verifyRefsHelper` with a tree build needs `hashToBytes`' correctness (Stage 2.3,
+bounded by the `unpack`/`pack` + `Bits8` walls) and a power-of-two leaf layout - a
+verify-path change, not a proof.
 
 . *[DONE — 2.3]* Hex codec structural round-trip. The full
   `hexStringToBytes (bytesToHex bs) = Just bs` crosses two primitive walls —
