@@ -32,6 +32,7 @@ modules = Ochrance.A2ML.Types
         , Ochrance.Filesystem.Verify
         , Ochrance.Filesystem.VerifyProof
         , Ochrance.Filesystem.Repair
+        , Ochrance.Filesystem.RepairProof
         , Ochrance.FFI.Echidna
 
 opts = "--total"

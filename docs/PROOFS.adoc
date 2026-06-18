@@ -111,6 +111,10 @@ The core is *clean*: all 19 `ochrance-core` modules carry `%default total` (the
 | verifier soundness: `verifyRefsHelper fs refs = Right ()` ⇒ `All (RefMatches fs) refs`
   — every accepted ref names an in-range block whose stored hash equals the ref's
   (four-guard per-ref inversion, Bool-level).
+| `repairBlock{Sets,Preserves,NumBlocks,Idempotent}` (Stage 3.1)
+| pure repair primitive correctness over `repairBlockPure`: installs the hash at the
+  index, preserves other indices and the count, idempotent. Wall-free (`Nat`
+  structural `==`: `eqNatReflTrue` / `neqNatFalse`).
 | `roundtripManifest` + sub-codecs (`algoRT`, `modeRT`, `refsRT`, `mpolRT`, …)
 | grammar invertibility: `decodeManifest (encodeManifest m) = Just m`.
 | `SatisfiesMinimum` / `attestedSatisfiesLax`
@@ -208,19 +212,30 @@ let `merkleBinding` carry the no-collision guarantee into verification).
 
 === Stage 3 — Repair correctness (L3, linear types)  [model: Opus]
 
-PRECONDITION (surfaced at Compaction 2): `repair` is currently a *stub* —
-`repairBlock` (`Repair.idr`) updates the hash map but does **not** read or write
-block data. Proving `verify (repair s) = Valid` against a no-op would be vacuous or
-false. DECISION (recommended): introduce a pure
-`repairPure : FSState -> Manifest -> FSState` that genuinely reconstructs the hash
-map, prove correctness over *that*, and make the IO `repair` a proven-equivalent
-shell (the IO↔pure pattern). Alternative: leave repair honestly-bounded until real
-block-I/O lands (defers the linear-type theorem).
+RESOLVED (was PRECONDITION): the pure repair core is now factored out —
+`repairBlockPure : FSState -> BlockIndex -> Hash -> FSState` installs a hash in the
+map, and the IO `repairBlock` is `repairBlockPure` + the range check (IO↔pure
+pattern). Because FSState's verifiable content *is* its hash map (it carries no
+separate block data), this is the genuine repair semantics, so the theorems are
+well-founded, not vacuous.
 
-. `verifyPure (repairPure s m) m = True` — the meaty (now well-founded) theorem.
-. Repair idempotence as a *proof* (today only a property test).
-. Harvest framework's mode-indexed Interface; state the `VerifiedSubsystem` law
-  `verify (repair s m) m = Right …` and prove the FSState instance satisfies it.
+. *[DONE — 3.1]* Pure repair primitive correctness, machine-checked
+  (`Ochrance.Filesystem.RepairProof`, axiom-free): `repairBlockSets` (the repaired
+  index now holds the new hash), `repairBlockPreserves` (every other index
+  untouched), `repairBlockNumBlocks` (block count preserved), and
+  `repairBlockIdempotent` (repairing the same (index, hash) twice = once) — the
+  ledger's "idempotence as a proof", delivered. The index test is `Nat` `==`
+  (structural — `eqNatReflTrue` / `neqNatFalse`), so wall-free, unlike the primitive
+  `Hash` `==`.
+. *[3.2 — next]* Whole-manifest repair ⇒ verify:
+  `verifyRefsHelper (repairPure s m) m.refs = Right ()`. Builds on 2.2's
+  `verifyRefsHelper` and the 3.1 lemmas, but needs (a) a precondition that ref names
+  parse to *distinct* in-range indices (so the rebuilt map is per-ref consistent),
+  and (b) the isolated `Hash`-reflexivity hypothesis `(h == h) = True` — the same
+  primitive `==` wall as `merkleCorrect`'s residual step — named explicitly, never
+  faked.
+. Harvest framework's mode-indexed Interface; state the `VerifiedSubsystem` law and
+  prove the FSState instance satisfies it.
 +
 WATCH-FOR: may need proof witnesses threaded through the `1`-quantified API —
 possible signature changes to `Repair.idr`.
