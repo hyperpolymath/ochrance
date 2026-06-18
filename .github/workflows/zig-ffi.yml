@@ -36,3 +36,6 @@ jobs:
       - name: Test (hash known-answer vectors + Ed25519 round-trip)
         working-directory: ffi/zig
         run: zig build test
+      - name: Runtime link test (C ABI via dlopen — the contract Idris2's FFI uses)
+        working-directory: ffi/zig
+        run: bash test/run_link_test.sh

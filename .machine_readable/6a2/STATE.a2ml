@@ -7,12 +7,12 @@ project = "ochrance"
 version = "0.1.0"
 last-updated = "2026-06-18"
 status = "active"
-session = "machine-readable checkpoint — 2026-06-18 (Stage 1 complete; Stage 2 core + 2.4 verify↔Merkle wiring + live root-verify soundness; Stage 3.1 pure repair + 3.2 repair⇒verify)"
+session = "machine-readable checkpoint — 2026-06-18 (Stage 1 complete; Stage 2 core + 2.4 verify↔Merkle wiring + live root-verify soundness; Stage 3.1 pure repair + 3.2 repair⇒verify; crypto FFI wired: libochrance.so built+linked, runtime KAT + Idris→FFI tests)"
 
 [project-context]
 name = "Ochránce"
 purpose = """Neurosymbolic filesystem verification framework in Idris2 dependent types: a pluggable VerifiedSubsystem interface, A2ML attestation/audit markup, a verified Merkle tree with a combiner-generic soundness theorem, and ECHIDNA integration."""
-completion-percentage = 66
+completion-percentage = 68
 
 [position]
 phase = "implementation"   # design | implementation | testing | maintenance | archived
@@ -52,7 +52,6 @@ milestones = [
 
 [blockers-and-issues]
 issues = [
-  "No cryptographic-integrity claim yet: Idris stub fallbacks (hashPairStub / blake3Stub / ed25519VerifyStub in FFI/Crypto.idr) remain in the verification flow; libochrance.so not yet built + linked in",
   "Repair (L3) idempotence is property-tested only, not yet proven",
   "ECHIDNA FFI is stubbed (echidnaProve returns 'FFI not yet implemented')",
   "Production round-trip (parse∘lex∘serialize) is honestly bounded by primitive String ops — see docs/PROOFS.adoc",
@@ -66,10 +65,10 @@ actions = [
   "Stage 3.2 DONE — whole-manifest repair ⇒ verify (repairThenVerify, module RepairVerify). repairRefsPure folds repairBlockPure; proof = verifyRefsComplete ∘ repairRefsConsistent; GoodRefs precondition + hashRefl hypothesis, both named",
   "Live-verifier Merkle redesign SOUNDNESS DONE (merkleRootVerifyHashSound) — root-comparing verifier is sound at the Hash level, modulo named CollisionResistant + DecodeInjective",
   "Live-verifier PLUMBING DONE (module VerifyRoot) — padToLength/nextPow2Exp/layoutLeaves pad to power-of-2 leaf Vect; verifyByRoot/verifyByRootHash build tree + compare roots; fsBlockHashes/verifySnapshotRoot = runtime path vs FSSnapshot.rootHash. Executable, total; accept-on-match soundness = merkleRootVerifyHashSound",
-  "Stage 4 DONE (honest isolation) — CollisionResistant cannot be discharged (pigeonhole-false for compressing combiner); isolated as the irreducible crypto assumption + proved it has teeth (constNotCollisionResistant, module MerkleAssumption). Optional follow-on: wire real Zig/FFI combiner + declare CR as its explicit assumption",
+  "Stage 4 DONE (honest isolation) — CollisionResistant cannot be discharged (pigeonhole-false for compressing combiner); isolated as the irreducible crypto assumption + proved it has teeth (constNotCollisionResistant, module MerkleAssumption). Follow-on DONE: real Zig/BLAKE3 combiner wired via libochrance.so (production rootHashBytesIO/hashPairBlake3); CR remains its explicit, supplied-at-boundary assumption",
   "Stage 2.4 DONE — verify↔Merkle proof-level wiring (rootFaithful/rootVerifySound): the root is a faithful fingerprint of the blocks (binding). REMAINING: connect to the live Hash-based verifyRefsHelper via hex Hash<->HashBytes conversion (2.3-bounded) + power-of-two layout (verify-path change, not a proof)",
   "Stage 3.2 (next provable): whole-manifest repairPure ⇒ verifyRefsHelper accepts (distinct-in-range ref-name precondition + isolated Hash-reflexivity hypothesis)",
-  "Remove Idris-side crypto stubs and build + link libochrance.so into the flow (unblocks the crypto-integrity claim)",
+  "DONE — crypto FFI wired: build.zig emits libochrance.so (correct soname); production Idris path (blake3/sha256/sha3_256/hashPairBlake3/rootHashBytesIO/ed25519Verify) calls it via %foreign; dead stubs (blake3Stub/sha256Stub/sha3_256Stub/ed25519VerifyStub) removed; pure XOR combiner renamed xorCombiner (spec instance). Verified: zig build test, C dlopen link test (KAT, CI-gated in zig-ffi.yml), Idris→FFI runtime test tests/ffi/CryptoFFITest.idr (prod Merkle root = BLAKE3 fold ≠ XOR). Residual: CollisionResistant assumption (isolated)",
   "Sync .machine_readable scaffold to rsr-template (ai/, compliance/, configs/, policies/, scripts/, 0.1-AI-MANIFEST, ENSAID_CONFIG, root README, root-allow) — pending template access",
 ]
 
@@ -90,4 +89,4 @@ decisions = [
 [maintenance-status]
 last-run-utc = "2026-06-05T14:08:00Z"
 last-result = "pass"  # unknown | pass | warn | fail
-notes = "CI green on main; core builds fully total. A2ML parser 16/16, property 47/47, e2e 22/22; integration suite and Zig FFI build+test green."
+notes = "CI green on main; core builds fully total (idris2 0.8.0, 29/29 modules, --total). A2ML parser 16/16, property 47/47, e2e 22/22; Zig FFI build+test green; C dlopen link test 10/10; Idris→FFI runtime test 6/6 (real BLAKE3 via libochrance.so)."

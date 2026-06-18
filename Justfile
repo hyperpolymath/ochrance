@@ -32,6 +32,11 @@ build-abi:
 build-ffi:
     cd ffi/zig && zig build
 
+# Build libochrance.so + run the C-ABI runtime link test (KAT vectors via dlopen).
+# This is the runtime contract Idris2's %foreign loader depends on.
+test-ffi-link:
+    bash ffi/zig/test/run_link_test.sh
+
 # Build all components
 build: build-core build-abi build-ffi
 

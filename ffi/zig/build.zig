@@ -23,9 +23,14 @@ pub fn build(b: *std.Build) void {
     b.installArtifact(lib);
 
     // Also create a shared library version (libochrance.so) — this is what the
-    // Idris2 FFI loads at runtime.
+    // Idris2 FFI loads at runtime. The name MUST be "ochrance" so the artifact is
+    // libochrance.so: the Idris bindings declare `%foreign "C:blake3_hash,
+    // libochrance"` (ochrance-core/Ochrance/FFI/Crypto.idr), so the runtime loader
+    // resolves the soname libochrance.so. Any other shared-library name would never
+    // be found. A static libochrance.a and a shared libochrance.so share the base
+    // name without clashing (distinct extensions).
     const shared_lib = b.addSharedLibrary(.{
-        .name = "ochrance-shared",
+        .name = "ochrance",
         .root_source_file = .{ .cwd_relative = "src/main.zig" },
         .target = target,
         .optimize = optimize,

@@ -68,7 +68,7 @@ Also integrates with ECHIDNA for neural proof synthesis — FFI calls to libechi
 
 == Known Limitations & TODOs
 
-* **Hashes**: BLAKE3/SHA-256/SHA3-256 are now implemented in the Zig FFI (`ffi/zig/src/main.zig`, tested via `zig build test`). Remaining: remove the Idris-side XOR/zero stub fallbacks (`hashPairStub`/`blake3Stub`) and build+link `libochrance.so` into the verification flow before claiming cryptographic integrity.
+* **Hashes**: BLAKE3/SHA-256/SHA3-256 are implemented in the Zig FFI (`ffi/zig/src/main.zig`, tested via `zig build test`) and wired into the Idris production path through `%foreign`. `build.zig` emits `libochrance.so`; a C `dlopen` link test (`ffi/zig/test/link_test.c`, KAT vectors, CI-gated in `zig-ffi.yml`) and an Idris→FFI runtime test (`tests/ffi/CryptoFFITest.idr`) confirm real BLAKE3 end to end — the production Merkle root is the BLAKE3 fold, not the XOR root. The dead zero-hash stubs are removed; the pure XOR combiner is renamed `xorCombiner` (the spec instance of the combiner-generic proofs). Residual assumption: `CollisionResistant` (isolated, pigeonhole-false).
 * **Attestation**: Ed25519 verification is implemented (Zig FFI + `validateManifestIO`). Remaining: a trust-root / key-management story and end-to-end integration before claiming full attestation.
 * **Linear repair**: Idris2 linear types framework incomplete for full use-after-repair prevention (ongoing research).
 

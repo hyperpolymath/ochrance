@@ -159,24 +159,33 @@ Ochránce is the receipt substrate, but its integrity guarantees are still
 under construction. The following caveats are load-bearing and must be carried
 into any future receipt before it is trusted.
 
-. *No cryptographic filesystem-integrity claim while placeholder hashes remain
-  reachable.* The Zig FFI now implements real primitives — BLAKE3, SHA-256,
+. *Cryptographic filesystem-integrity now rests on real hashing, modulo one
+  named assumption.* The Zig FFI implements real primitives — BLAKE3, SHA-256,
   SHA3-256 and Ed25519 verification via Zig's audited `std.crypto`
-  (`ffi/zig/src/main.zig`) — and the Idris bindings in
-  `ochrance-core/Ochrance/FFI/Crypto.idr` (plus `Merkle.idr`'s `hashPairBlake3`)
-  call them. **But the integrity story is not yet closed:** XOR/zero-hash stub
-  fallbacks (`hashPairStub`, `blake3Stub`, …) still live in the Idris tree, the
-  cryptographic path still depends on `libochrance.so` being built and linked
-  into the verification flow, and the roadmap still lists the Merkle BLAKE3
-  wiring as incomplete. Until the stub paths are removed and the FFI path is the
-  only one, Merkle roots are *structural* commitments, not cryptographic ones.
+  (`ffi/zig/src/main.zig`) — and the Idris production path
+  (`ochrance-core/Ochrance/FFI/Crypto.idr` + `Merkle.idr`'s `hashPairBlake3` /
+  `rootHashBytesIO`) calls them through `%foreign "C:...,libochrance"`.
+  `build.zig` emits `libochrance.so` with the correct soname; a C `dlopen` link
+  test (`ffi/zig/test/link_test.c`, KAT vectors, CI-gated) and an Idris→FFI
+  runtime test (`tests/ffi/CryptoFFITest.idr`) confirm the production Merkle root
+  is the real BLAKE3 fold, not the XOR root. The dead zero-hash stubs are gone;
+  the remaining pure XOR combiner is renamed `xorCombiner` — the totality-friendly
+  *spec instance* of the combiner-generic soundness/binding theorems, never a
+  production fallback. The one irreducible assumption is collision resistance,
+  modelled as the explicit, isolated `CollisionResistant` hypothesis
+  (pigeonhole-false, so never dischargeable — see `Filesystem.MerkleAssumption`),
+  supplied at the verification boundary. So Merkle roots are cryptographic
+  commitments *given* a collision-resistant BLAKE3 — the standard, clearly-stated
+  trust root.
 
-. *No full-attestation claim until signature verification is integrated.*
-  `ed25519Verify` and `validateManifestIO` exist and can check an Ed25519
-  attestation, but an `ed25519VerifyStub` remains, the pure `validateManifest`
-  path skips signatures entirely, there is no key-management / trust-root
-  story, and the whole path again depends on `libochrance.so`. "Attested"
-  mode is defined; it is not yet an end-to-end trustworthy attestation.
+. *No full-attestation claim until key management is integrated.*
+  `ed25519Verify` (real Zig `std.crypto`, linked via `libochrance.so`) and
+  `validateManifestIO` can check an Ed25519 attestation, and the
+  `ed25519VerifyStub` has been removed. What remains for "Attested" mode is a
+  trust-root / key-management story (which keys are authorised, and how), plus
+  the fact that the *pure* `validateManifest` path skips signatures by
+  construction. The signature primitive is real and linked; end-to-end
+  trustworthy attestation still needs the key-management layer.
 
 . *No complete-linear-repair claim until that work is actually complete.*
   `Repair.idr` correctly types repair with linear quantities

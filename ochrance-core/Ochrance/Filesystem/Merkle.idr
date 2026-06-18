@@ -12,7 +12,7 @@
 ||| `...With` family and the `merkleCorrectWith` theorem, whose proof uses no
 ||| property of the combiner whatsoever (combination is an opaque black box).
 ||| The pure XOR API (`rootHashBytes`, `verifyProof`, `generateProof`,
-||| `reconstruct`, `merkleCorrect`) is recovered as the `hashPairStub` instance,
+||| `reconstruct`, `merkleCorrect`) is recovered as the `xorCombiner` instance,
 ||| so XOR is no longer a special case but one point of a universally-quantified
 ||| result; the cryptographic BLAKE3 path's soundness is the same theorem at the
 ||| BLAKE3 combiner, with only its allocation-failure plumbing living in the
@@ -43,7 +43,7 @@ emptyHash = replicate 32 0
 
 ||| A pure two-input hash combiner over 32-byte digests. The Merkle
 ||| construction and its soundness proof are universally quantified over this
-||| function, so every concrete hash (the XOR placeholder `hashPairStub`, or a
+||| function, so every concrete hash (the XOR placeholder `xorCombiner`, or a
 ||| cryptographic BLAKE3/SHA-256 combiner) is one instance of the same theorem.
 public export
 Combiner : Type
@@ -73,11 +73,11 @@ rootHashWith h (Node l r) = h (rootHashWith h l) (rootHashWith h r)
 ||| For leaves, this is the leaf hash itself.
 ||| For nodes, this combines the children's hashes using the XOR placeholder.
 |||
-||| NOTE: This is `rootHashWith hashPairStub`. Use rootHashBytesIO for
+||| NOTE: This is `rootHashWith xorCombiner`. Use rootHashBytesIO for
 ||| cryptographic hashing.
 public export
 rootHashBytes : MerkleTree n -> HashBytes
-rootHashBytes t = rootHashWith hashPairStub t
+rootHashBytes t = rootHashWith xorCombiner t
 
 ||| Extract the root hash using BLAKE3 (IO version).
 ||| This is the cryptographically secure version that should be used in production.
@@ -155,11 +155,11 @@ verifyProofWith h root leaf ((GoRight, sibling) :: rest) =
   verifyProofWith h root (h sibling leaf) rest
 
 ||| Verify a Merkle inclusion proof against a known root (placeholder version).
-||| This is `verifyProofWith hashPairStub`. Use verifyProofIO for cryptographic
+||| This is `verifyProofWith xorCombiner`. Use verifyProofIO for cryptographic
 ||| verification.
 public export
 verifyProof : (root : HashBytes) -> (leaf : HashBytes) -> MerkleProof -> Bool
-verifyProof root leaf prf = verifyProofWith hashPairStub root leaf prf
+verifyProof root leaf prf = verifyProofWith xorCombiner root leaf prf
 
 ||| Verify a Merkle inclusion proof using BLAKE3 (IO version).
 ||| This is the cryptographically secure version for production use.
@@ -213,12 +213,12 @@ generateProofWith {n = S k} h (Node l r) idx =
        Just (subProof ++ [(GoRight, siblingHash)])
 
 ||| Generate a Merkle inclusion proof from a tree (pure XOR version).
-||| This is `generateProofWith hashPairStub`.
+||| This is `generateProofWith xorCombiner`.
 |||
 ||| Returns Nothing if the index is out of range.
 export
 generateProof : {n : Nat} -> MerkleTree n -> (leafIdx : Nat) -> Maybe MerkleProof
-generateProof t i = generateProofWith hashPairStub t i
+generateProof t i = generateProofWith xorCombiner t i
 
 ||| Generate a Merkle inclusion proof using BLAKE3 for sibling hashes (IO version).
 ||| This produces a cryptographically secure proof path.
@@ -280,10 +280,10 @@ reconstructWith h acc [] = acc
 reconstructWith h acc ((GoLeft,  sib) :: rest) = reconstructWith h (h acc sib) rest
 reconstructWith h acc ((GoRight, sib) :: rest) = reconstructWith h (h sib acc) rest
 
-||| Reconstruct under the XOR placeholder. This is `reconstructWith hashPairStub`.
+||| Reconstruct under the XOR placeholder. This is `reconstructWith xorCombiner`.
 public export
 reconstruct : HashBytes -> MerkleProof -> HashBytes
-reconstruct acc prf = reconstructWith hashPairStub acc prf
+reconstruct acc prf = reconstructWith xorCombiner acc prf
 
 ||| `reconstructWith h` distributes over path concatenation: folding `p ++ q`
 ||| equals folding `p`, then folding `q` from that result.
@@ -310,12 +310,12 @@ verifyProofReconstructsWith h root leaf ((GoRight, sib) :: rest) =
   verifyProofReconstructsWith h root (h sib leaf) rest
 
 ||| `verifyProof` (XOR API) is a root-equality test on `reconstruct`.
-||| The `hashPairStub` instance of `verifyProofReconstructsWith`.
+||| The `xorCombiner` instance of `verifyProofReconstructsWith`.
 export
 verifyProofReconstructs : (root, leaf : HashBytes) -> (prf : MerkleProof)
                        -> verifyProof root leaf prf = (root == reconstruct leaf prf)
 verifyProofReconstructs root leaf prf =
-  verifyProofReconstructsWith hashPairStub root leaf prf
+  verifyProofReconstructsWith xorCombiner root leaf prf
 
 -- Injectivity of `Just`, used to read prf back out of the generated proof.
 justInj : {0 a : Type} -> {0 x, y : a} -> Just x = Just y -> x = y
@@ -362,7 +362,7 @@ merkleCorrectWith h {n = S k} (Node l r) i leaf prf gl gp with (i < power 2 k) p
     merkleCorrectWith h {n = S k} (Node l r) i leaf prf gl gp | False | Nothing =
       absurd gp
 
-||| SOUNDNESS (merkleCorrect) for the XOR placeholder API: the `hashPairStub`
+||| SOUNDNESS (merkleCorrect) for the XOR placeholder API: the `xorCombiner`
 ||| instance of `merkleCorrectWith`. Every inclusion proof produced by
 ||| `generateProof` for an in-range leaf reconstructs the tree's true root.
 |||
@@ -379,4 +379,4 @@ merkleCorrect : {n : Nat} -> (t : MerkleTree n) -> (i : Nat)
              -> getLeafHash t i = Just leaf
              -> generateProof t i = Just prf
              -> reconstruct leaf prf = rootHashBytes t
-merkleCorrect t i leaf prf gl gp = merkleCorrectWith hashPairStub t i leaf prf gl gp
+merkleCorrect t i leaf prf gl gp = merkleCorrectWith xorCombiner t i leaf prf gl gp
