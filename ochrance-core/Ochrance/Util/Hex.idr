@@ -43,6 +43,7 @@ hexPairToByte hi lo = do
 --------------------------------------------------------------------------------
 
 ||| Parse pairs of characters from a list
+public export
 parsePairs : List Char -> Maybe (List Bits8)
 parsePairs [] = Just []
 parsePairs [_] = Nothing  -- Odd number of chars
@@ -93,13 +94,25 @@ byteToHexPair b =
       lo = b `mod` 16
   in (nibbleToHexChar hi, nibbleToHexChar lo)
 
+||| The two hex characters of a single byte, as a list. Top-level (not a
+||| `where`-local) and inlined to `[c1, c2]` so it reduces definitionally - this
+||| is what `HexProof` reasons about.
+public export
+toHexPair : Bits8 -> List Char
+toHexPair b = [nibbleToHexChar (b `div` 16), nibbleToHexChar (b `mod` 16)]
+
+||| Bytes to hex characters, by explicit structural recursion (rather than
+||| `concatMap`, whose Foldable/Monoid layer does not reduce definitionally - the
+||| same hazard as `traverse_`). This is the round-trip partner of `parsePairs`.
+public export
+bytesToHexChars : List Bits8 -> List Char
+bytesToHexChars []        = []
+bytesToHexChars (b :: bs) = toHexPair b ++ bytesToHexChars bs
+
 ||| Convert bytes to hex string
 export
 bytesToHex : List Bits8 -> String
-bytesToHex bytes = pack $ concatMap toPair bytes
-  where
-    toPair : Bits8 -> List Char
-    toPair b = let (hi, lo) = byteToHexPair b in [hi, lo]
+bytesToHex bytes = pack (bytesToHexChars bytes)
 
 ||| Convert a vector of bytes to hex string
 export
