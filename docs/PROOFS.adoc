@@ -99,6 +99,10 @@ The core is *clean*: all 19 `ochrance-core` modules carry `%default total` (the
   injectivity): `foldRoot h xs = foldRoot h ys -> xs = ys`, and the built-tree-root
   corollary. Combiner injectivity lifted through the fold; `CollisionResistant h` the
   sole assumption (`MerkleBinding`), discharged for the concrete combiner in Stage 4.
+| `validateManifestSound` (Stage 2.1)
+| validator soundness: `validateManifest m = Right vm` ⇒ supported version,
+  non-empty subsystem, and `All RefValid m.refs` (well-formed-hex hashes). Invariants
+  at the wall-free Bool level; Either-pipeline inversion.
 | `roundtripManifest` + sub-codecs (`algoRT`, `modeRT`, `refsRT`, `mpolRT`, …)
 | grammar invertibility: `decodeManifest (encodeManifest m) = Just m`.
 | `SatisfiesMinimum` / `attestedSatisfiesLax`
@@ -149,14 +153,43 @@ in `VectLemmas`. No API change was forced.
 
 === Stage 2 — Verify + Validator soundness  [model: Opus → Sonnet if mechanical]
 
-. Validator: validated manifest ⇒ structural invariants hold.
-. `verifyState` agrees with the manifest, wired to `merkleCorrect`.
-. Hex codec: `hexStringToBytes (bytesToHex bs) = Just bs` and the length law.
+. *[DONE — 2.1]* Validator soundness: a manifest accepted by `validateManifest`
+  satisfies the structural invariants it checks — supported version, non-empty
+  subsystem, and well-formed-hex ref hashes (`All RefValid m.refs`). `ValidManifest`
+  is therefore a genuine validity witness, proved by inverting the Either-monad
+  validation pipeline. `validateManifestSound` in `Ochrance.A2ML.ValidatorProof`
+  (helpers `traverseRefsSound` / `validRefSound`). Machine-checked
+  (idris2 0.8.0, `--total`), axiom-free.
 +
-WATCH-FOR: `Verify` and `Hex` likely rest on primitive `String`/`Bits8`
-comparison — the *same wall* as the lexer round-trip. If so the honest theorem is
-propositional-over-decidable (document the boundary; do *not* reach for
-`believe_me`). This can shorten Stage 2 and justify a Sonnet downshift.
+HONEST FORM (was WATCH-FOR, confirmed): invariants are stated at the *decision
+(Bool) level* — `isVersionSupported v = True`, `(sub == "") = False`,
+`isValidHexString h = True` — not inverted into propositional `String` facts
+(`v = "0.1.0"`, `Not (sub = "")`): `String` equality is primitive, so the Bool
+form is the strongest honest statement. Two reduction subtleties recorded for
+reuse: (i) `traverse_` for `Either` desugars through `<*>` and `Right () *> y` is
+only `map id y` (functor-identity *law*, not definitional) — so invert by casing
+on the head outcome *and* the tail fold, keeping each step definitional; (ii) `with`
+abstracts only a hypothesis's WHNF, so case on `validateRef ref` (exposed there),
+not the nested `isValidHexString`.
+
+. *[2.2 — prereq refactor]* `verify` agrees with the manifest, wired to
+  `merkleCorrect`. BLOCKER: `verifyRefsHelper` is a `where`-local inside the
+  `VerifiedSubsystem` instance method and cannot be named in a theorem — lift it to
+  a top-level `public export` function first; then the ref-match inversion (success
+  ⇒ each `blockHash idx = Just h` with `h == ref.hash = True`) goes through like
+  2.1. The "wired to `merkleCorrect`" half is *architectural*: the current `verify`
+  compares ref hashes directly and never builds a Merkle tree, so connecting it to
+  `merkleCorrect` requires the verify path to construct one (a design change, not a
+  proof).
+
+. *[2.3 — bounded]* Hex codec round-trip `hexStringToBytes (bytesToHex bs) = Just bs`.
+  Primitive-wall-dominated: (a) `unpack (pack xs) = xs` has no equational theory
+  (the *same wall* as the production lexer round-trip); (b) the per-byte fact rests
+  on primitive `Bits8` `div`/`mod`/`*`/`+`. The clean content is the List-`Char`
+  recursion `parsePairs (concatMap toPair bs) = Just bs` *given* an isolated
+  per-byte hypothesis (the Bits8 boundary, IO↔pure-bridge style) — but
+  `bytesToHex`'s `toPair` is a `where`-local and `parsePairs` is private, so this
+  too needs a lift first. Honestly bounded, like the production-pipeline round-trip.
 
 === Stage 3 — Repair correctness (L3, linear types)  [model: Opus]
 

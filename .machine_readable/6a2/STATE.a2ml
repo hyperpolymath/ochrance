@@ -7,12 +7,12 @@ project = "ochrance"
 version = "0.1.0"
 last-updated = "2026-06-18"
 status = "active"
-session = "machine-readable checkpoint — 2026-06-18 (Stage 1 complete: Merkle closure + crypto-binding interface)"
+session = "machine-readable checkpoint — 2026-06-18 (Stage 1 complete; Stage 2.1 validator soundness done)"
 
 [project-context]
 name = "Ochránce"
 purpose = """Neurosymbolic filesystem verification framework in Idris2 dependent types: a pluggable VerifiedSubsystem interface, A2ML attestation/audit markup, a verified Merkle tree with a combiner-generic soundness theorem, and ECHIDNA integration."""
-completion-percentage = 48
+completion-percentage = 52
 
 [position]
 phase = "implementation"   # design | implementation | testing | maintenance | archived
@@ -27,6 +27,7 @@ theorems = [
   "rootFoldLaw + foldRoot (Stage 1.2) — root characterisation: rootHashWith h (buildMerkleTree hs) = foldRoot h hs (combiner-generic)",
   "rootHashBytesE_spec / verifyProofE_spec (Stage 1.3) — Either-monad folds compute the pure spec; production …IO_spec conditional on the explicit FFI-reflection hypothesis",
   "merkleBinding / merkleBindingTree (Stage 1.4) — binding discharged against the typed CollisionResistant h (combiner injectivity): equal roots ⇒ equal leaves; sole assumption discharged in Stage 4",
+  "validateManifestSound (Stage 2.1) — validator soundness: accepted manifest ⇒ supported version, non-empty subsystem, All RefValid refs (Bool-level, Either-pipeline inversion)",
   "roundtripManifest (+ algoRT/modeRT/refsRT/mpolRT codecs) — decodeManifest (encodeManifest m) = Just m",
   "SatisfiesMinimum / attestedSatisfiesLax — progressive-assurance threshold witness",
   "ABI Handle / createHandle — So (ptr /= 0) non-null invariant",
@@ -53,7 +54,7 @@ issues = [
 [critical-next-actions]
 actions = [
   "Stage 1 COMPLETE — 1.1 buildGetLeaf, 1.2 rootFoldLaw, 1.3 IO↔pure bridge, 1.4 merkleBinding/CollisionResistant — all machine-checked (idris2 0.8.0, --total)",
-  "Stage 2 (Opus→Sonnet): Validator soundness; verifyState agrees with the manifest (wired to merkleCorrect); hex codec round-trip (watch the String/Bits8 primitive wall — honest theorem may be propositional-over-decidable)",
+  "Stage 2.1 DONE — validateManifestSound (machine-checked). Stage 2.2 (verify): lift verifyRefsHelper out of the instance where-clause to top-level, then invert; merkle-wiring needs verify to build a tree (architectural). Stage 2.3 (hex): primitive Bits8 + unpack/pack walls — bounded; lift toPair/parsePairs first",
   "Remove Idris-side crypto stubs and build + link libochrance.so into the flow (unblocks the crypto-integrity claim)",
   "Sync .machine_readable scaffold to rsr-template (ai/, compliance/, configs/, policies/, scripts/, 0.1-AI-MANIFEST, ENSAID_CONFIG, root README, root-allow) — pending template access",
 ]
