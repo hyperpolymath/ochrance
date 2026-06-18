@@ -212,7 +212,7 @@ merkleBuild2 =
   let h1 : HashBytes = replicate 32 1
       h2 : HashBytes = replicate 32 2
       tree = buildMerkleTree {n=1} [h1, h2]
-      expectedRoot = hashPairStub h1 h2
+      expectedRoot = xorCombiner h1 h2
   in rootHashBytes tree == expectedRoot
 
 ||| Merkle proof: simple inclusion proof verification (single leaf)
@@ -226,7 +226,7 @@ merkleProofLeftLeaf : Bool
 merkleProofLeftLeaf =
   let h1 : HashBytes = replicate 32 1
       h2 : HashBytes = replicate 32 2
-      root = hashPairStub h1 h2
+      root = xorCombiner h1 h2
       prf : MerkleProof = [(GoLeft, h2)]
   in verifyProof root h1 prf
 
@@ -235,7 +235,7 @@ merkleProofRightLeaf : Bool
 merkleProofRightLeaf =
   let h1 : HashBytes = replicate 32 1
       h2 : HashBytes = replicate 32 2
-      root = hashPairStub h1 h2
+      root = xorCombiner h1 h2
       prf : MerkleProof = [(GoRight, h1)]
   in verifyProof root h2 prf
 
@@ -245,7 +245,7 @@ merkleProofWrongSibling =
   let h1 : HashBytes = replicate 32 1
       h2 : HashBytes = replicate 32 2
       h3 : HashBytes = replicate 32 3
-      root = hashPairStub h1 h2
+      root = xorCombiner h1 h2
       prf : MerkleProof = [(GoLeft, h3)]  -- h3 != h2
   in not (verifyProof root h1 prf)
 
@@ -275,9 +275,9 @@ merkleTests = do
           h3 : HashBytes = replicate 32 3
           h4 : HashBytes = replicate 32 4
           tree = buildMerkleTree {n=2} [h1, h2, h3, h4]
-          expectedLeft = hashPairStub h1 h2
-          expectedRight = hashPairStub h3 h4
-          expectedRoot = hashPairStub expectedLeft expectedRight
+          expectedLeft = xorCombiner h1 h2
+          expectedRight = xorCombiner h3 h4
+          expectedRoot = xorCombiner expectedLeft expectedRight
       in rootHashBytes tree == expectedRoot
 
 --------------------------------------------------------------------------------

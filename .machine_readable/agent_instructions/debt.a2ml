@@ -16,13 +16,6 @@ last-updated = "2026-06-05"
 # ============================================================================
 
 [[debt.should]]
-component = "ochrance-core/Ochrance/FFI/Crypto.idr"
-issue = "Idris stub fallbacks (hashPairStub / blake3Stub / ed25519VerifyStub) remain in the verification flow and libochrance.so is not yet built+linked — so no cryptographic-integrity claim can be made (CLAUDE.md rule 4)."
-effort = "hard"
-impact = "high"
-discovered = "2026-06-05"
-
-[[debt.should]]
 component = "ochrance-core/Ochrance/Filesystem/Repair.idr"
 issue = "Repair idempotence is property-tested only, not proven (proof campaign Stage 3)."
 effort = "hard"

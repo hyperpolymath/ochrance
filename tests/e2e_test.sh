@@ -84,6 +84,14 @@ assert "Zig build.zig exists" "$([ -f "$BASE/ffi/zig/build.zig" ] && echo 0 || e
 assert "build.zig configures library" \
     "$(grep -q "lib\|static\|shared" "$BASE/ffi/zig/build.zig" && echo 0 || echo 1)"
 
+# The shared library MUST be named "ochrance" (-> libochrance.so) to match the
+# Idris %foreign soname. The old "ochrance-shared" name produced the wrong file
+# and the FFI could never load at runtime.
+assert "build.zig emits libochrance.so (no stale 'ochrance-shared' name)" \
+    "$(! grep -q "ochrance-shared" "$BASE/ffi/zig/build.zig" && echo 0 || echo 1)"
+assert "build.zig builds a shared library" \
+    "$(grep -q "addSharedLibrary" "$BASE/ffi/zig/build.zig" && echo 0 || echo 1)"
+
 # ================================================================
 # E2E: Test coverage completeness
 # ================================================================
@@ -99,6 +107,14 @@ assert "A2ML format tests exist" "$([ -f "$BASE/tests/A2ML/ParserTests.idr" ] &&
 # Ed25519 specific test exists
 assert "Ed25519 tests exist" \
     "$([ -f "$BASE/ffi/zig/test-ed25519.zig" ] || [ -f "$BASE/ffi/zig/test-ed25519-api.zig" ] && echo 0 || echo 1)"
+
+# Runtime FFI tests — exercise the dlopen/%foreign contract, not just sources
+assert "C dlopen link test exists" \
+    "$([ -f "$BASE/ffi/zig/test/link_test.c" ] && echo 0 || echo 1)"
+assert "C link test runner exists" \
+    "$([ -f "$BASE/ffi/zig/test/run_link_test.sh" ] && echo 0 || echo 1)"
+assert "Idris->FFI runtime test exists" \
+    "$([ -f "$BASE/tests/ffi/CryptoFFITest.idr" ] && echo 0 || echo 1)"
 
 # ================================================================
 # E2E: Security properties

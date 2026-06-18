@@ -51,7 +51,7 @@ idris2 --repl ochrance.ipkg
 1. **All functions must be total** - use `%default total` in every module
 2. **Structural recursion only** - no partial or assert_total
 3. **Idris2 0.8.0+** required
-4. **BLAKE3/SHA-256 via FFI** - real crypto is implemented in the Zig FFI (`ffi/zig/src/main.zig`: BLAKE3/SHA-256/SHA3-256/Ed25519 via `std.crypto`, with known-answer-vector tests). Still pending before any cryptographic-integrity claim: remove the Idris-side stub fallbacks (`hashPairStub`/`blake3Stub`/`ed25519VerifyStub` in `FFI/Crypto.idr`) and build+link `libochrance.so` into the verification flow.
+4. **BLAKE3/SHA-256 via FFI** - real crypto is implemented in the Zig FFI (`ffi/zig/src/main.zig`: BLAKE3/SHA-256/SHA3-256/Ed25519 via `std.crypto`, with known-answer-vector tests) and wired into the Idris production path (`blake3`/`sha256`/`sha3_256`/`hashPairBlake3`/`rootHashBytesIO`/`ed25519Verify`) via `%foreign "C:...,libochrance"`. `build.zig` emits `libochrance.so` with the correct soname; the runtime C-ABI contract is CI-gated by a dlopen link test (`ffi/zig/test/link_test.c`, KAT vectors), and `tests/ffi/CryptoFFITest.idr` confirms the production Merkle root is the real BLAKE3 fold (≠ the XOR root). The dead stub fallbacks (`blake3Stub`/`sha256Stub`/`sha3_256Stub`/`ed25519VerifyStub`) are removed; the pure XOR combiner is renamed `xorCombiner` — the totality-friendly *spec instance* of the combiner-generic theorems, not a fallback. The one irreducible crypto assumption is `CollisionResistant` (pigeonhole-false, isolated in `Filesystem.MerkleAssumption`).
 5. **Linear types for repair** - repair operations consume old state (Quantity 1)
 
 ## Error Taxonomy
