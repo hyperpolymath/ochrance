@@ -187,9 +187,8 @@ zig build test                    # Run Zig unit tests
 # Ensure libochrance.so is on LD_LIBRARY_PATH
 export LD_LIBRARY_PATH="$PWD/ffi/zig/zig-out/lib:$LD_LIBRARY_PATH"
 
-# Type-check and build
+# Type-check and build (the core package includes the filesystem subsystem)
 idris2 --build ochrance.ipkg
-idris2 --build ochrance-fs.ipkg
 ```
 
 ### Cross-Compile

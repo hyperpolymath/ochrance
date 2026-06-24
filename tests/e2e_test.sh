@@ -10,7 +10,9 @@ set -euo pipefail
 
 PASS=0
 FAIL=0
-BASE=/var/mnt/eclipse/repos/ochrance
+# Resolve the repository root from this script's own location so the suite
+# runs anywhere (CI checkouts, contributor clones), not just one local path.
+BASE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 assert() {
     local desc="$1"
@@ -35,7 +37,7 @@ idris2_functions=$(grep -h "export" "$BASE/src/abi/Ochrance/ABI/Foreign.idr" 2>/
 zig_exports=$(grep -c "^export fn" "$BASE/ffi/zig/src/main.zig" 2>/dev/null || echo 0)
 assert "Zig FFI has exported functions" "$([ "$zig_exports" -gt 0 ] && echo 0 || echo 1)"
 
-# All four hash algorithms are implemented
+# All four hash/signature algorithms are implemented in the Zig crypto FFI.
 assert "BLAKE3 implemented in Zig" "$(grep -q "blake3" "$BASE/ffi/zig/src/main.zig" && echo 0 || echo 1)"
 assert "SHA-256 implemented in Zig" "$(grep -qi "sha.256\|sha256" "$BASE/ffi/zig/src/main.zig" && echo 0 || echo 1)"
 assert "SHA3-256 implemented in Zig" "$(grep -qi "sha3\|sha3_256" "$BASE/ffi/zig/src/main.zig" && echo 0 || echo 1)"
@@ -82,6 +84,14 @@ assert "Zig build.zig exists" "$([ -f "$BASE/ffi/zig/build.zig" ] && echo 0 || e
 assert "build.zig configures library" \
     "$(grep -q "lib\|static\|shared" "$BASE/ffi/zig/build.zig" && echo 0 || echo 1)"
 
+# The shared library MUST be named "ochrance" (-> libochrance.so) to match the
+# Idris %foreign soname. The old "ochrance-shared" name produced the wrong file
+# and the FFI could never load at runtime.
+assert "build.zig emits libochrance.so (no stale 'ochrance-shared' name)" \
+    "$(! grep -q "ochrance-shared" "$BASE/ffi/zig/build.zig" && echo 0 || echo 1)"
+assert "build.zig builds a shared library" \
+    "$(grep -q "addSharedLibrary" "$BASE/ffi/zig/build.zig" && echo 0 || echo 1)"
+
 # ================================================================
 # E2E: Test coverage completeness
 # ================================================================
@@ -97,6 +107,14 @@ assert "A2ML format tests exist" "$([ -f "$BASE/tests/A2ML/ParserTests.idr" ] &&
 # Ed25519 specific test exists
 assert "Ed25519 tests exist" \
     "$([ -f "$BASE/ffi/zig/test-ed25519.zig" ] || [ -f "$BASE/ffi/zig/test-ed25519-api.zig" ] && echo 0 || echo 1)"
+
+# Runtime FFI tests — exercise the dlopen/%foreign contract, not just sources
+assert "C dlopen link test exists" \
+    "$([ -f "$BASE/ffi/zig/test/link_test.c" ] && echo 0 || echo 1)"
+assert "C link test runner exists" \
+    "$([ -f "$BASE/ffi/zig/test/run_link_test.sh" ] && echo 0 || echo 1)"
+assert "Idris->FFI runtime test exists" \
+    "$([ -f "$BASE/tests/ffi/CryptoFFITest.idr" ] && echo 0 || echo 1)"
 
 # ================================================================
 # E2E: Security properties

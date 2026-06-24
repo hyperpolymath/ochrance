@@ -3,7 +3,7 @@
 
 id: "org.hyperpolymath.ochrance"
 version: "1.0.0"
-clade: "unknown"
+clade: "fv"
 status: "active"
 
 # SSG Configuration (Unified boj-server build)
@@ -16,3 +16,16 @@ ssg:
 # Relationships
 parents:
   - "org.hyperpolymath.boj-server"
+
+# Realignments — significant repository realignments on record
+realignments:
+  - date: "2026-06-05"
+    kind: "convergence + proof-campaign"
+    summary: >
+      Converged on ochrance-core as the single source of proof truth (D1);
+      retired the ochrance-framework duplicate core and harvested its
+      mode-indexed VerifiedSubsystem interface. Generalised Merkle
+      construction / verification / soundness over the hash combiner
+      (XOR and BLAKE3 as instances of one theorem). Implemented the Zig
+      crypto FFI. Reconciled all open branches into a single main.
+    authority: "docs/PROOFS.adoc"

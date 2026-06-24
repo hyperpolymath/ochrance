@@ -58,19 +58,11 @@ serialize m =
 -- Roundtrip Verification
 --------------------------------------------------------------------------------
 
-||| Test roundtrip property: serialize then parse should produce original manifest
-||| This is used in property-based tests to verify serialization correctness.
-|||
-||| Note: Roundtrip equivalence is semantic, not textual.
-||| Whitespace/formatting may differ, but structure must match.
-public export
-roundtripProperty : Manifest -> Bool
-roundtripProperty m =
-  -- In practice, this would call the lexer and parser:
-  -- case lex (serialize m) of
-  --   Right tokens => case parse tokens of
-  --     Right m' => m == m'
-  --     Left _ => False
-  --   Left _ => False
-  -- For now, we rely on external test harness to verify this.
-  True  -- placeholder - actual verification done in test suite
+-- Round-trip correctness lives in `Ochrance.A2ML.Roundtrip`:
+--   * `roundtripManifest` — a machine-checked theorem that the grammar is
+--     invertible: `decodeManifest (encodeManifest m) = Just m` for every `m`.
+--   * `roundtripProperty` — a runtime check composing this serializer with the
+--     production lexer and parser.
+-- Neither can live here: both must reference the parser, and a serializer that
+-- imports the parser would create an import cycle. (The previous placeholder
+-- `roundtripProperty m = True` asserted nothing and has been removed.)

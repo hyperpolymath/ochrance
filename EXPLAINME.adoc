@@ -17,7 +17,7 @@ Three components orchestrate this: A2ML parser/validator (parses filesystem mani
 
 === Claim 1: A2ML Lexer and Parser Are Structurally Recursive and Total
 
-**Location**: `/var/mnt/eclipse/repos/ochrance/ochrance-core/A2ML/Lexer.idr` and `/var/mnt/eclipse/repos/ochrance/ochrance-core/A2ML/Parser.idr` (Idris2 modules)
+**Location**: `ochrance-core/A2ML/Lexer.idr` and `ochrance-core/A2ML/Parser.idr` (Idris2 modules)
 
 **How verified**: Both modules use the `%default total` directive, requiring all functions to be total (no partial match, no undefined behavior). The lexer is structurally recursive: it tokenizes input by consuming characters and recursing on the remainder (proof: input size strictly decreases). The parser is similarly total: it parses tokens using sized types (`List (n : Nat)`) to guarantee termination (proof: token list shrinks). README (§Overview) claims "A2ML Parser/Validator" with compile-time structure proofs; this is verified by the Idris2 type checker itself — if either module had a partial function, `idris2 --check` would reject it with an error, not compile.
 
@@ -25,11 +25,11 @@ Three components orchestrate this: A2ML parser/validator (parses filesystem mani
 
 === Claim 2: Verified Merkle Tree Size Guarantees Are Compile-Time Proofs
 
-**Location**: `/var/mnt/eclipse/repos/ochrance/ochrance-core/Framework/Merkle.idr` (Idris2 Merkle tree with size-indexed types)
+**Location**: `ochrance-core/Filesystem/Merkle.idr` (Idris2 Merkle tree with size-indexed types)
 
 **How verified**: The Merkle tree is defined as a size-indexed binary tree: `MerkleTree : (size : Nat) → Type`. At compile time, Idris2 verifies that all leaf nodes are at depth `log2(size)`. The tree operations (leaf insertion, hash computation, proof generation) take dependent proofs that structure is maintained. README (§Architecture) claims "Verified Merkle trees — Size-indexed binary trees with compile-time structure proofs." This is proven by the type signature itself: if you try to construct a tree of size 8 with only 7 leaves, the type checker rejects it because the dependent type `MerkleTree 8` requires exactly 8 leaves.
 
-**Caveat**: The placeholder hash functions in `Merkle.idr` use XOR, not cryptographic hashes (BLAKE3/SHA-256). This is noted in the CLAUDE.md as a critical TODO. The structure proofs are valid but cryptographic strength is absent.
+**Caveat**: The size-indexed *structure* proofs are independent of hash strength. Real hashing now exists — the Zig FFI implements BLAKE3/SHA-256/SHA3-256 (`ffi/zig/src/main.zig`, with known-answer-vector tests) and the IO Merkle path calls `hashPairBlake3` — but a pure XOR combiner (`hashPairStub`) remains for totality/offline testing, and `libochrance.so` must be built and linked for the cryptographic path to be live. Until the stub paths are removed and the FFI is wired into the verification flow, the structure proofs hold but cryptographic integrity is not yet claimed.
 
 == Dogfooded Across The Account
 
@@ -51,12 +51,11 @@ Also integrates with ECHIDNA for neural proof synthesis — FFI calls to libechi
 | `ochrance-core/Framework/Proof.idr` | Proof witness types; generic proof structure for all subsystems
 | `ochrance-core/Framework/Error.idr` | Error taxonomy: q/* (query), p/* (proof), z/* (zone/system)
 | `ochrance-core/Framework/FFI/Echidna.idr` | FFI to ECHIDNA neural prover (via Zig C ABI)
-| `modules/filesystem/Types.idr` | Filesystem types: FSState, Block, FSSnapshot with dependent proofs
-| `modules/filesystem/Merkle.idr` | Verified Merkle tree: size-indexed with compile-time structure proofs (placeholder XOR hashes)
-| `modules/filesystem/Verify.idr` | Verification logic: block hashes, tree integrity, attestation signatures
-| `modules/filesystem/Repair.idr` | Linear type repair: repair operations consume old state (Quantity 1)
-| `ochrance.ipkg` | Package definition for core library
-| `ochrance-fs.ipkg` | Package definition for filesystem module
+| `ochrance-core/Ochrance/Filesystem/Types.idr` | Filesystem types: FSState, Block, FSSnapshot with dependent proofs
+| `ochrance-core/Ochrance/Filesystem/Merkle.idr` | Verified Merkle tree: height-indexed with compile-time structure proofs and the `merkleCorrect` inclusion-soundness theorem (placeholder XOR hashes for the pure path)
+| `ochrance-core/Ochrance/Filesystem/Verify.idr` | Verification logic: block hashes, tree integrity, attestation signatures
+| `ochrance-core/Ochrance/Filesystem/Repair.idr` | Linear type repair: repair operations consume old state (Quantity 1)
+| `ochrance.ipkg` | Package definition for the core library (includes the filesystem subsystem)
 |===
 
 == Testing Critical Paths
@@ -70,8 +69,8 @@ Also integrates with ECHIDNA for neural proof synthesis — FFI calls to libechi
 
 == Known Limitations & TODOs
 
-* **Hashes**: Currently XOR (placeholder). Must replace with BLAKE3/SHA-256 via Zig FFI.
-* **Attestation**: Cryptographic signature verification not yet integrated (planned).
+* **Hashes**: BLAKE3/SHA-256/SHA3-256 are implemented in the Zig FFI (`ffi/zig/src/main.zig`, tested via `zig build test`) and wired into the Idris production path through `%foreign`. `build.zig` emits `libochrance.so`; a C `dlopen` link test (`ffi/zig/test/link_test.c`, KAT vectors, CI-gated in `zig-ffi.yml`) and an Idris→FFI runtime test (`tests/ffi/CryptoFFITest.idr`) confirm real BLAKE3 end to end — the production Merkle root is the BLAKE3 fold, not the XOR root. The dead zero-hash stubs are removed; the pure XOR combiner is renamed `xorCombiner` (the spec instance of the combiner-generic proofs). Residual assumption: `CollisionResistant` (isolated, pigeonhole-false).
+* **Attestation**: Ed25519 verification is implemented (Zig FFI + `validateManifestIO`). Remaining: a trust-root / key-management story and end-to-end integration before claiming full attestation.
 * **Linear repair**: Idris2 linear types framework incomplete for full use-after-repair prevention (ongoing research).
 
 == Questions?

@@ -84,28 +84,6 @@ parseField (MkState (IDENT name :: EQUALS :: STRING value :: rest) pos) =
 parseField (MkState (tok :: _) pos) =
   Left (UnexpectedToken "IDENT = STRING" tok pos)
 
-||| Parse a number field: IDENT EQUALS NUMBER
-total
-parseNumberField : ParserState -> Either ParseError (String, Integer, ParserState)
-parseNumberField (MkState [] pos) =
-  Left (UnexpectedEOF "number field")
-parseNumberField (MkState (IDENT name :: EQUALS :: NUMBER value :: rest) pos) =
-  Right (name, value, MkState rest (pos + 3))
-parseNumberField (MkState (tok :: _) pos) =
-  Left (UnexpectedToken "IDENT = NUMBER" tok pos)
-
-||| Parse a boolean field: IDENT EQUALS IDENT("true"|"false")
-total
-parseBoolField : ParserState -> Either ParseError (String, Bool, ParserState)
-parseBoolField (MkState [] pos) =
-  Left (UnexpectedEOF "boolean field")
-parseBoolField (MkState (IDENT name :: EQUALS :: IDENT "true" :: rest) pos) =
-  Right (name, True, MkState rest (pos + 3))
-parseBoolField (MkState (IDENT name :: EQUALS :: IDENT "false" :: rest) pos) =
-  Right (name, False, MkState rest (pos + 3))
-parseBoolField (MkState (tok :: _) pos) =
-  Left (UnexpectedToken "IDENT = IDENT(true|false)" tok pos)
-
 ||| Parse the @manifest section body.
 ||| Expects: version = "..." subsystem = "..." [timestamp = "..."] }
 total
@@ -141,41 +119,32 @@ parseManifestBody st = do
       Left (UnexpectedEOF "manifest body")
   where
     unless : Bool -> Either ParseError () -> Either ParseError ()
-    unless True  err = err
-    unless False _   = Right ()
+    unless True  _   = Right ()
+    unless False err = err
 
-||| Parse a single ref entry: IDENT COLON HASH
+||| Parse the @refs section body, accumulating refs until RBRACE.
+|||
+||| Total by structural recursion: the inner loop matches on the token
+||| list and each accepted ref (IDENT COLON HASH) recurses on a strict
+||| tail, so the argument provably shrinks (no fuel, no unsafe escape hatch).
 total
-parseRef : ParserState -> Either ParseError (Ref, ParserState)
-parseRef (MkState [] pos) =
-  Left (UnexpectedEOF "ref entry")
-parseRef (MkState (IDENT name :: COLON :: HASH alg value :: rest) pos) =
-  case parseHashAlgorithm alg of
-    Just algorithm =>
-      let hash = MkHash algorithm value
-          ref = MkRef name hash
-      in Right (ref, MkState rest (pos + 3))
-    Nothing =>
-      Left (InvalidValue "ref" name ("unsupported hash algorithm: " ++ alg) pos)
-parseRef (MkState (tok :: _) pos) =
-  Left (UnexpectedToken "IDENT : HASH" tok pos)
-
-mutual
-  ||| Parse the @refs section body (accumulates refs until RBRACE).
-  ||| Uses mutual recursion to accumulate refs.
-  covering
-  parseRefsBody : ParserState -> Either ParseError (List Ref, ParserState)
-  parseRefsBody st = parseRefsLoop st []
-
-  covering
-  parseRefsLoop : ParserState -> List Ref -> Either ParseError (List Ref, ParserState)
-  parseRefsLoop st@(MkState [] pos) acc =
-    Left (UnexpectedEOF "refs body")
-  parseRefsLoop st@(MkState (RBRACE :: rest) pos) acc =
-    Right (reverse acc, MkState rest (S pos))
-  parseRefsLoop st acc = do
-    (ref, st1) <- parseRef st
-    parseRefsLoop st1 (ref :: acc)
+parseRefsBody : ParserState -> Either ParseError (List Ref, ParserState)
+parseRefsBody (MkState toks pos) = go toks pos []
+  where
+    go : List Token -> Nat -> List Ref
+      -> Either ParseError (List Ref, ParserState)
+    go [] pos acc =
+      Left (UnexpectedEOF "refs body")
+    go (RBRACE :: rest) pos acc =
+      Right (reverse acc, MkState rest (S pos))
+    go (IDENT name :: COLON :: HASH alg value :: rest) pos acc =
+      case parseHashAlgorithm alg of
+        Just algorithm =>
+          go rest (pos + 3) (MkRef name (MkHash algorithm value) :: acc)
+        Nothing =>
+          Left (InvalidValue "ref" name ("unsupported hash algorithm: " ++ alg) pos)
+    go (tok :: _) pos acc =
+      Left (UnexpectedToken "IDENT : HASH" tok pos)
 
 ||| Parse the optional @attestation section.
 ||| Returns Nothing if @attestation is not present.
@@ -210,8 +179,8 @@ parseOptionalAttestation st =
     _ => Right (Nothing, st)
   where
     unless : Bool -> Either ParseError () -> Either ParseError ()
-    unless True  err = err
-    unless False _   = Right ()
+    unless True  _   = Right ()
+    unless False err = err
 
 ||| Parse verification mode from string
 total
@@ -223,7 +192,11 @@ parseVerificationMode _          = Nothing
 
 ||| Parse the optional @policy section.
 ||| Returns Nothing if @policy is not present.
-covering
+|||
+||| Total by structural recursion: the field loop matches on the token
+||| list and each accepted field (IDENT EQUALS value) recurses on a strict
+||| tail, so the argument provably shrinks (no fuel, no unsafe escape hatch).
+total
 parseOptionalPolicy : ParserState -> Either ParseError (Maybe Policy, ParserState)
 parseOptionalPolicy st =
   case peek st of
@@ -232,7 +205,7 @@ parseOptionalPolicy st =
       st2 <- expectToken LBRACE st1
 
       -- Parse mode field
-      (mField, mValue, st3) <- parseField st2
+      (mField, mValue, MkState toks pos) <- parseField st2
       unless (mField == "mode") $
         Left (InvalidValue "policy" mField "expected 'mode' field" st.position)
 
@@ -241,43 +214,36 @@ parseOptionalPolicy st =
         Nothing => Left (InvalidValue "policy" "mode" ("invalid mode: " ++ mValue) st.position)
 
       -- Check for optional fields or closing brace
-      parsePolicyFields st3 mode Nothing False
+      parsePolicyFields toks pos mode Nothing False
 
     _ => Right (Nothing, st)
   where
     unless : Bool -> Either ParseError () -> Either ParseError ()
-    unless True  err = err
-    unless False _   = Right ()
+    unless True  _   = Right ()
+    unless False err = err
 
-    covering
-    parsePolicyFields : ParserState -> VerificationMode -> Maybe Nat -> Bool
+    ||| Field loop over the raw token list (structurally decreasing).
+    parsePolicyFields : List Token -> Nat -> VerificationMode -> Maybe Nat -> Bool
                      -> Either ParseError (Maybe Policy, ParserState)
-    parsePolicyFields st mode maxAge requireSig =
-      case peek st of
-        Just RBRACE =>
-          let policy = MkPolicy mode maxAge requireSig
-          in Right (Just policy, advance st)
-
-        Just (IDENT "max_age") => do
-          (_, value, st1) <- parseNumberField st
-          unless (value >= 0) $
-            Left (InvalidValue "policy" "max_age" "must be non-negative" st.position)
-          parsePolicyFields st1 mode (Just (cast value)) requireSig
-
-        Just (IDENT "require_sig") => do
-          (_, value, st1) <- parseBoolField st
-          parsePolicyFields st1 mode maxAge value
-
-        Just tok =>
-          Left (UnexpectedToken "RBRACE, max_age, or require_sig" tok st.position)
-
-        Nothing =>
-          Left (UnexpectedEOF "policy body")
+    parsePolicyFields (RBRACE :: rest) pos mode maxAge requireSig =
+      Right (Just (MkPolicy mode maxAge requireSig), MkState rest (S pos))
+    parsePolicyFields (IDENT "max_age" :: EQUALS :: NUMBER value :: rest) pos mode maxAge requireSig =
+      if value >= 0
+        then parsePolicyFields rest (pos + 3) mode (Just (cast value)) requireSig
+        else Left (InvalidValue "policy" "max_age" "must be non-negative" pos)
+    parsePolicyFields (IDENT "require_sig" :: EQUALS :: IDENT "true" :: rest) pos mode maxAge _ =
+      parsePolicyFields rest (pos + 3) mode maxAge True
+    parsePolicyFields (IDENT "require_sig" :: EQUALS :: IDENT "false" :: rest) pos mode maxAge _ =
+      parsePolicyFields rest (pos + 3) mode maxAge False
+    parsePolicyFields (tok :: _) pos _ _ _ =
+      Left (UnexpectedToken "RBRACE, max_age, or require_sig" tok pos)
+    parsePolicyFields [] _ _ _ _ =
+      Left (UnexpectedEOF "policy body")
 
 ||| Parse a list of tokens into a Manifest.
 ||| Expects: @manifest { ... } @refs { ... } [@attestation { ... }] [@policy { ... }]
 public export
-covering
+total
 parse : List Token -> Either ParseError Manifest
 parse tokens = do
   let st = MkState tokens 0
@@ -298,5 +264,10 @@ parse tokens = do
   -- Parse optional @policy section
   (policy, st8) <- parseOptionalPolicy st7
 
-  -- Construct manifest
-  Right (MkManifest manifestData refs attestation policy)
+  -- Enforce end-of-input: a complete manifest must be followed only by EOF.
+  -- This rejects trailing tokens such as duplicate @sections, so malformed
+  -- input cannot smuggle ignored data past the parser.
+  case peek st8 of
+    Just EOF => Right (MkManifest manifestData refs attestation policy)
+    Nothing  => Right (MkManifest manifestData refs attestation policy)
+    Just tok => Left (UnexpectedToken "end of input" tok st8.position)

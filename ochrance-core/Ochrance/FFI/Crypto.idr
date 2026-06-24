@@ -145,25 +145,6 @@ sha3_256 : HasIO io => List Bits8 -> io (Either OchranceError (Vect 32 Bits8))
 sha3_256 bytes = liftIO (callHashFFI prim__sha3_256 bytes)
 
 --------------------------------------------------------------------------------
--- Stub fallbacks (pure, no FFI required — for testing without libochrance.so)
---------------------------------------------------------------------------------
-
-||| Stub BLAKE3: returns XOR-folded placeholder. Use only for testing.
-export
-blake3Stub : List Bits8 -> Vect 32 Bits8
-blake3Stub bytes = replicate 32 0
-
-||| Stub SHA-256: returns zero hash. Use only for testing.
-export
-sha256Stub : List Bits8 -> Vect 32 Bits8
-sha256Stub bytes = replicate 32 0
-
-||| Stub SHA3-256: returns zero hash. Use only for testing.
-export
-sha3_256Stub : List Bits8 -> Vect 32 Bits8
-sha3_256Stub bytes = replicate 32 0
-
---------------------------------------------------------------------------------
 -- Ed25519 Signature Verification
 --------------------------------------------------------------------------------
 
@@ -199,11 +180,6 @@ ed25519Verify sig pubkey msg = liftIO $ do
   result <- primIO (prim__ed25519_verify sigBuf pkBuf msgBuf msgLen)
   pure (Right (result == 1))
 
-||| Stub Ed25519 verification: always returns False. Use only for testing.
-export
-ed25519VerifyStub : Vect 64 Bits8 -> Vect 32 Bits8 -> List Bits8 -> Bool
-ed25519VerifyStub _ _ _ = False
-
 ||| Verify an Ed25519 signature from hex-encoded strings.
 ||| This is a convenience wrapper for the common case of hex-encoded signatures.
 ||| Returns Right (Just True/False) on success, Right Nothing if hex parsing fails,
@@ -226,14 +202,24 @@ ed25519VerifyHex sigHex pkHex msg = do
           Right valid => pure (Right (Just valid))
 
 --------------------------------------------------------------------------------
--- Pure Hash Combiners (for Merkle trees)
+-- Hash Combiners (for Merkle trees)
 --------------------------------------------------------------------------------
 
-||| Combine two 32-byte hashes using XOR (pure stub for totality).
-||| Use hashPairBlake3 in IO context for cryptographic hashing.
+||| The pure XOR combiner: the totality-friendly *spec instance* of the
+||| combiner-generic Merkle theorems (`rootHashWith` / `merkleCorrectWith` /
+||| `merkleBinding`, ...). It is NOT cryptographic and NOT a fallback in the
+||| production path — it exists only so the parametric proofs and the pure
+||| property tests have a concrete, total combiner to instantiate at. The
+||| production Merkle flow runs in IO and combines with real BLAKE3 via
+||| `hashPairBlake3` (and the `...IO` functions in `Filesystem.Merkle`), backed
+||| by `libochrance.so`. A pure cryptographic combiner is impossible here: BLAKE3
+||| only crosses the FFI boundary in IO, so the pure instance is necessarily
+||| non-cryptographic. Security therefore rests on the explicit, isolated
+||| `CollisionResistant` hypothesis (see `Filesystem.MerkleBinding` /
+||| `Filesystem.MerkleAssumption`), supplied at the verification boundary.
 export
-hashPairStub : Vect 32 Bits8 -> Vect 32 Bits8 -> Vect 32 Bits8
-hashPairStub h1 h2 = zipWith xor h1 h2
+xorCombiner : Vect 32 Bits8 -> Vect 32 Bits8 -> Vect 32 Bits8
+xorCombiner h1 h2 = zipWith xor h1 h2
 
 ||| IO version: Combine two 32-byte hashes using BLAKE3 via FFI.
 ||| Returns Left on buffer allocation failure (z/out-of-memory).

@@ -1,14 +1,92 @@
 # SPDX-License-Identifier: MPL-2.0
-# STATE.a2ml — Project state checkpoint
-# Converted from STATE.scm on 2026-03-15
-
+# Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
+#
+# STATE.a2ml — Ochránce project state checkpoint
 [metadata]
 project = "ochrance"
 version = "0.1.0"
-last-updated = "2026-03-15"
+last-updated = "2026-06-18"
 status = "active"
+session = "machine-readable checkpoint — 2026-06-18 (Stage 1 complete; Stage 2 core + 2.4 verify↔Merkle wiring + live root-verify soundness; Stage 3.1 pure repair + 3.2 repair⇒verify; crypto FFI wired: libochrance.so built+linked, runtime KAT + Idris→FFI tests)"
 
 [project-context]
-name = "ochrance"
-completion-percentage = 0
-phase = "In development"
+name = "Ochránce"
+purpose = """Neurosymbolic filesystem verification framework in Idris2 dependent types: a pluggable VerifiedSubsystem interface, A2ML attestation/audit markup, a verified Merkle tree with a combiner-generic soundness theorem, and ECHIDNA integration."""
+completion-percentage = 68
+
+[position]
+phase = "implementation"   # design | implementation | testing | maintenance | archived
+maturity = "experimental"  # experimental | alpha | beta | production | lts
+
+[proven-surface]
+# machine-checked, axiom-free (no believe_me / assert_* / postulate / holes on proof symbols)
+theorems = [
+  "merkleCorrect / merkleCorrectWith — inclusion-proof soundness, generic over the hash combiner (XOR & BLAKE3 are instances)",
+  "verifyProofReconstructs(With) — verify ≡ (root == reconstruct leaf prf)",
+  "buildGetLeaf (Stage 1.1) — buildMerkleTree/getLeafHash round-trip: getLeafHash (buildMerkleTree hs) (finToNat i) = Just (index i hs)",
+  "rootFoldLaw + foldRoot (Stage 1.2) — root characterisation: rootHashWith h (buildMerkleTree hs) = foldRoot h hs (combiner-generic)",
+  "rootHashBytesE_spec / verifyProofE_spec (Stage 1.3) — Either-monad folds compute the pure spec; production …IO_spec conditional on the explicit FFI-reflection hypothesis",
+  "merkleBinding / merkleBindingTree (Stage 1.4) — binding discharged against the typed CollisionResistant h (combiner injectivity): equal roots ⇒ equal leaves; sole assumption, isolated (NOT dischargeable — pigeonhole) in Stage 4",
+  "constNotCollisionResistant (Stage 4) — the binding hypothesis HAS TEETH: a degenerate combiner provably fails CollisionResistant (Not (CollisionResistant constCombiner)). Full injectivity is pigeonhole-false for any compressing 64→32-byte combiner, so CR is the irreducible cryptographic assumption, never proved (module MerkleAssumption). Inaccurate 'Stage 4 discharges it' wording corrected across MerkleBinding/PROOFS",
+  "validateManifestSound (Stage 2.1) — validator soundness: accepted manifest ⇒ supported version, non-empty subsystem, All RefValid refs (Bool-level, Either-pipeline inversion)",
+  "parsePairsRoundtrip (Stage 2.3) — hex codec structural soundness: parsePairs (bytesToHexChars bs) = Just bs, given isolated per-byte Bits8 hypothesis (pack/unpack wall explicit)",
+  "verifyRefsSound (Stage 2.2) — verifier soundness: verifyRefsHelper fs refs = Right () ⇒ All (RefMatches fs) refs (four-guard per-ref inversion; merkle-root wiring deferred as architectural)",
+  "repairBlock{Sets,Preserves,NumBlocks,Idempotent} (Stage 3.1) — pure repair primitive correctness over repairBlockPure: installs hash at index, preserves others + count, idempotent (wall-free Nat == via eqNatReflTrue/neqNatFalse)",
+  "repairThenVerify (Stage 3.2) — whole-manifest repair ⇒ verify: verifyRefsHelper (repairRefsPure s refs) refs = Right (). Lemma A verifyRefsComplete (completeness, converse of 2.2) ∘ Lemma B repairRefsConsistent (install+no-clobber via repairBlockSets/repairRefsPurePreserves). Honest hyps: GoodRefs (distinct in-range names) + hashRefl (primitive Hash == reflexivity)",
+  "rootFaithful / rootVerifySound / inclusionVerifySound / hashToBytes (Stage 2.4) — verify↔Merkle wiring, 3 modes generic→granular: root-equivalence (faithful fingerprint via merkleBindingTree), inclusion-proof (merkleCorrect per-leaf), live Hash↔HashBytes bridge for snapshot-root",
+  "merkleRootVerifyHashSound (+ mapDecodeInjective) (Stage 2.4 live) — live root-verification soundness at the Hash level: block-hash vectors that decode (decAll dec) + build equal-rooted trees are equal; carries rootVerifySound up across the decoder bridge. The theorem a redesigned root-comparing verifier rests on. Named boundaries: CollisionResistant h (1.4) + DecodeInjective dec (hex wall 2.3); parametric in dec, used at hashToBytes",
+  "roundtripManifest (+ algoRT/modeRT/refsRT/mpolRT codecs) — decodeManifest (encodeManifest m) = Just m",
+  "SatisfiesMinimum / attestedSatisfiesLax — progressive-assurance threshold witness",
+  "ABI Handle / createHandle — So (ptr /= 0) non-null invariant",
+  "supporting lemmas: reconstructAppendWith, powerTwoSucc, justInj; VectLemmas (indexAppendLeft/Right, indexReplace, finToNatReplace, splitAtConcat, splitAtEta, replaceInj)",
+]
+
+[route-to-mvp]
+# the proof campaign — docs/PROOFS.adoc is the authoritative, dependency-sorted plan
+milestones = [
+  "Stage 1 — Merkle closure (buildMerkleTree correctness, IO↔pure bridge) + crypto-binding interface (CollisionResistant)",
+  "Stage 2 — Verify + Validator soundness; hex codec round-trip",
+  "Stage 3 — Repair correctness (L3 linear types); harvest framework's mode-indexed Interface",
+  "Stage 4 — Merkle completeness, binding-assumption ISOLATION (CR is pigeonhole-false, not dischargeable — DONE via constNotCollisionResistant), progressive monotonicity, write-up",
+]
+
+[blockers-and-issues]
+issues = [
+  "Repair (L3) idempotence is property-tested only, not yet proven",
+  "ECHIDNA FFI is stubbed (echidnaProve returns 'FFI not yet implemented')",
+  "Production round-trip (parse∘lex∘serialize) is honestly bounded by primitive String ops — see docs/PROOFS.adoc",
+]
+
+[critical-next-actions]
+actions = [
+  "Stage 1 COMPLETE — 1.1 buildGetLeaf, 1.2 rootFoldLaw, 1.3 IO↔pure bridge, 1.4 merkleBinding/CollisionResistant — all machine-checked (idris2 0.8.0, --total)",
+  "Stage 2 provable core COMPLETE — 2.1 validateManifestSound, 2.2 verifyRefsSound, 2.3 parsePairsRoundtrip; all machine-checked. DEFERRED (architectural decision): wire verify to merkleCorrect — the verify path builds no Merkle tree today",
+  "Stage 3.1 DONE — pure repair primitive correctness (repairBlockPure factored out; sets/preserves/numBlocks/idempotent machine-checked)",
+  "Stage 3.2 DONE — whole-manifest repair ⇒ verify (repairThenVerify, module RepairVerify). repairRefsPure folds repairBlockPure; proof = verifyRefsComplete ∘ repairRefsConsistent; GoodRefs precondition + hashRefl hypothesis, both named",
+  "Live-verifier Merkle redesign SOUNDNESS DONE (merkleRootVerifyHashSound) — root-comparing verifier is sound at the Hash level, modulo named CollisionResistant + DecodeInjective",
+  "Live-verifier PLUMBING DONE (module VerifyRoot) — padToLength/nextPow2Exp/layoutLeaves pad to power-of-2 leaf Vect; verifyByRoot/verifyByRootHash build tree + compare roots; fsBlockHashes/verifySnapshotRoot = runtime path vs FSSnapshot.rootHash. Executable, total; accept-on-match soundness = merkleRootVerifyHashSound",
+  "Stage 4 DONE (honest isolation) — CollisionResistant cannot be discharged (pigeonhole-false for compressing combiner); isolated as the irreducible crypto assumption + proved it has teeth (constNotCollisionResistant, module MerkleAssumption). Follow-on DONE: real Zig/BLAKE3 combiner wired via libochrance.so (production rootHashBytesIO/hashPairBlake3); CR remains its explicit, supplied-at-boundary assumption",
+  "Stage 2.4 DONE — verify↔Merkle proof-level wiring (rootFaithful/rootVerifySound): the root is a faithful fingerprint of the blocks (binding). REMAINING: connect to the live Hash-based verifyRefsHelper via hex Hash<->HashBytes conversion (2.3-bounded) + power-of-two layout (verify-path change, not a proof)",
+  "Stage 3.2 (next provable): whole-manifest repairPure ⇒ verifyRefsHelper accepts (distinct-in-range ref-name precondition + isolated Hash-reflexivity hypothesis)",
+  "DONE — crypto FFI wired: build.zig emits libochrance.so (correct soname); production Idris path (blake3/sha256/sha3_256/hashPairBlake3/rootHashBytesIO/ed25519Verify) calls it via %foreign; dead stubs (blake3Stub/sha256Stub/sha3_256Stub/ed25519VerifyStub) removed; pure XOR combiner renamed xorCombiner (spec instance). Verified: zig build test, C dlopen link test (KAT, CI-gated in zig-ffi.yml), Idris→FFI runtime test tests/ffi/CryptoFFITest.idr (prod Merkle root = BLAKE3 fold ≠ XOR). Residual: CollisionResistant assumption (isolated)",
+  "Sync .machine_readable scaffold to rsr-template (ai/, compliance/, configs/, policies/, scripts/, 0.1-AI-MANIFEST, ENSAID_CONFIG, root README, root-allow) — pending template access",
+]
+
+[recent-history]
+# 2026-06-05 reconciliation: main is now the single trunk
+merged = [
+  "#31 — Zig crypto FFI (BLAKE3/SHA-256/SHA3-256/Ed25519) + zig-ffi.yml CI + Valence-Shell bridge docs",
+  "#32 — A2ML parser totality + correctness, Merkle combiner generalization, proof ledger, post-migration re-entry runbook",
+  "#33 — nixpkgs flake.lock bump",
+  "#34 — CodeQL cron weekly→monthly",
+]
+decisions = [
+  "D1 — converge on ochrance-core (ochrance-framework duplicate core retired; mode-indexed VerifiedSubsystem Interface harvested)",
+  "D2 — crypto binding modelled as a typed CollisionResistant hypothesis, discharged not asserted",
+  "D3 — svalinn migrates ReScript → Ephapax (migrate-then-prove)",
+]
+
+[maintenance-status]
+last-run-utc = "2026-06-05T14:08:00Z"
+last-result = "pass"  # unknown | pass | warn | fail
+notes = "CI green on main; core builds fully total (idris2 0.8.0, 29/29 modules, --total). A2ML parser 16/16, property 47/47, e2e 22/22; Zig FFI build+test green; C dlopen link test 10/10; Idris→FFI runtime test 6/6 (real BLAKE3 via libochrance.so)."

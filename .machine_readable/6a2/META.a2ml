@@ -1,9 +1,33 @@
 # SPDX-License-Identifier: MPL-2.0
-# META.a2ml — Project meta-information
-# Converted from META.scm on 2026-03-15
-
+# Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
+#
+# META.a2ml — Architecture decisions & development practices
 [metadata]
 project = "ochrance"
 author = "Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>"
 license = "MPL-2.0"
 standard = "RSR 2026"
+last-updated = "2026-06-05"
+
+[architecture]
+summary = """6-layer trust pyramid (L0 hardware root → L5 TUI/telemetry). Framework-first: a VerifiedSubsystem interface with pluggable modules; the filesystem is the reference subsystem. A2ML is the attestation/audit markup. A verified Merkle tree carries a combiner-generic soundness theorem. Crypto is provided by a thin Zig FFI over std.crypto."""
+core = "ochrance-core (Idris2) — single source of proof truth"
+ffi = "ffi/zig (BLAKE3 / SHA-256 / SHA3-256 / Ed25519); thin C NVMe syscall shims (L1)"
+languages = "Idris2 (proofs), Zig (FFI), C (syscall shims), Rust + Julia (ECHIDNA, future)"
+
+[decisions]
+# architecture decisions on record (proof-side rationale in docs/PROOFS.adoc)
+records = [
+  "D1 — single core: ochrance-core is the source of truth; ochrance-framework's duplicate core is retired, its mode-indexed VerifiedSubsystem Interface harvested.",
+  "D2 — crypto binding as a typed interface: collision resistance modelled as an Idris hypothesis (CollisionResistant h); the binding theorem is discharged against it, not left as prose.",
+  "D3 — svalinn migrates ReScript → Ephapax before proof (migrate-then-prove).",
+  "Combiner generalization: Merkle construction/verification/soundness are parameterised over the hash combiner; XOR and BLAKE3 are instances of one universally-quantified theorem; cryptographic binding is the separate trust assumption.",
+]
+
+[practices]
+totality = "every module carries %default total; structural recursion only; no believe_me / assert_* / postulate / unsafePerformIO / holes on proof symbols"
+idris = "Idris2 0.8.0+"
+progressive-strictness = "verification supports Lax / Checked / Attested modes"
+error-taxonomy = "q/ query · p/ proof · z/ zone"
+ci = "type-check + totality gate, A2ML/property/integration/e2e suites, Zig FFI build+test, CodeQL, secret scans, RSR antipattern / SPDX / workflow linters"
+docs = "AsciiDoc (.adoc) except GitHub-required files; the proof campaign is tracked in docs/PROOFS.adoc"

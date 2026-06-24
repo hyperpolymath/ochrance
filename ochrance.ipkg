@@ -14,15 +14,29 @@ modules = Ochrance.A2ML.Types
         , Ochrance.A2ML.Parser
         , Ochrance.A2ML.Validator
         , Ochrance.A2ML.Serializer
+        , Ochrance.A2ML.Roundtrip
+        , Ochrance.A2ML.ValidatorProof
         , Ochrance.Framework.Interface
         , Ochrance.Framework.Proof
         , Ochrance.Framework.Error
+        , Ochrance.Framework.Progressive
         , Ochrance.FFI.Crypto
         , Ochrance.Util.Hex
+        , Ochrance.Util.HexProof
         , Ochrance.Filesystem.Types
         , Ochrance.Filesystem.Merkle
+        , Ochrance.Util.VectLemmas
+        , Ochrance.Filesystem.MerkleBuild
+        , Ochrance.Filesystem.MerkleIO
+        , Ochrance.Filesystem.MerkleBinding
+        , Ochrance.Filesystem.MerkleAssumption
         , Ochrance.Filesystem.Verify
+        , Ochrance.Filesystem.VerifyProof
+        , Ochrance.Filesystem.VerifyMerkle
+        , Ochrance.Filesystem.VerifyRoot
         , Ochrance.Filesystem.Repair
+        , Ochrance.Filesystem.RepairProof
+        , Ochrance.Filesystem.RepairVerify
         , Ochrance.FFI.Echidna
 
 opts = "--total"

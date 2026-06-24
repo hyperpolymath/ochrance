@@ -48,7 +48,7 @@ createTestFS numBlocks =
   MkFSState
     numBlocks
     (\idx => if idx < numBlocks
-               then Just (MkHash BLAKE3 ("hash_" ++ show idx))
+               then Just (MkHash BLAKE3 ("deadbeef" ++ show idx))
                else Nothing)
     (MkManifestData "0.1.0" "test-filesystem" Nothing)
 
@@ -96,7 +96,7 @@ test_DetectHashMismatch = do
   let fs = createTestFS 2
 
   -- Create manifest with different hash for block 0
-  let wrongHash = MkHash BLAKE3 "wrong_hash"
+  let wrongHash = MkHash BLAKE3 "baadf00d"
   let wrongRef = MkRef "block_0" wrongHash
   let manifest = MkManifest
         (MkManifestData "0.1.0" "test-filesystem" Nothing)
@@ -178,8 +178,8 @@ test_LinearVerifyAndRepair = do
   -- Create manifest with correct hashes
   let manifest = MkManifest
         (MkManifestData "0.1.0" "test-filesystem" Nothing)
-        [ MkRef "block_0" (MkHash BLAKE3 "correct_0")
-        , MkRef "block_1" (MkHash BLAKE3 "correct_1")
+        [ MkRef "block_0" (MkHash BLAKE3 "c0ffee00")
+        , MkRef "block_1" (MkHash BLAKE3 "c0ffee01")
         ]
         Nothing
         Nothing
@@ -249,8 +249,10 @@ test_RoundtripSerialization = do
 test_MerkleTreeVerification : IO TestResult
 test_MerkleTreeVerification = do
   -- Create simple Merkle tree
-  let leaf1 = Leaf emptyHash
-  let leaf2 = Leaf emptyHash
+  -- distinct, non-empty leaves: with the XOR placeholder combiner, two *empty*
+  -- leaves would xor to an empty root, so use non-zero leaf hashes here.
+  let leaf1 = Leaf (replicate 32 1)
+  let leaf2 = Leaf (replicate 32 2)
   let tree = Node leaf1 leaf2
 
   -- Get root hash

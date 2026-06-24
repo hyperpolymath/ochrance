@@ -1,0 +1,471 @@
+= Ochránce — Proof Campaign Ledger
+:toc: macro
+:sectnums:
+
+// SPDX-License-Identifier: MPL-2.0
+// SPDX-FileCopyrightText: 2026 Jonathan D.A. Jewell (hyperpolymath)
+
+This is the authoritative, dependency-sorted plan for driving the formal
+verification of the Ochránce estate to completion. It is the durable source of
+truth for the proof thread: it survives context compaction, so each working
+window starts from this file rather than from chat memory.
+
+toc::[]
+
+== Scope & estate map
+
+Three repositories are in scope. "Verification" means something different in each.
+
+[cols="1,2,2",options="header"]
+|===
+| Repo | What "verified" means | This thread executes?
+
+| `ochrance`
+| Idris2 dependent-type proofs (the canonical core).
+| *Yes — primary focus.*
+
+| `ochrance-framework`
+| Architecture + docs. Its `ochrance-core` is a weaker, type-incompatible
+  duplicate and is being *retired* (see Decision D1).
+| Docs/Interface harvest only — core is deleted, not proven.
+
+| `svalinn`
+| ReScript edge gateway → migrating to *Ephapax* (replaces all ReScript).
+  Type-safety and schema/property tests, not dependent types.
+| *No — disposed* to a delegated session (see Disposed Tracks). Specs tracked here.
+|===
+
+== Decisions on record
+
+[cols="1,3",options="header"]
+|===
+| ID | Decision
+
+| *D1 — Converge on ochrance*
+| `ochrance/ochrance-core` is the single source of proof truth.
+  `ochrance-framework/ochrance-core` is retired. Its one genuinely better idea —
+  the *mode-indexed, subsystem-parameterised* `VerifiedSubsystem` Interface
+  (`VerificationProof mode SubState SubManifest`) — is harvested into ochrance.
+  Framework keeps its real value: the docs (A2ML-SPEC, FFI-CONTRACT, THREAT-MODEL,
+  WHITEPAPER, ROADMAP, L4-POLICIES) and architecture.
+
+| *D2 — Crypto binding as a typed interface*
+| The security half of the Merkle argument (collision resistance) is modelled as
+  an Idris hypothesis `CollisionResistant h`, and the binding theorem is
+  discharged against it — not left as prose. It is the irreducible cryptographic
+  trust root (pigeonhole-false for a compressing combiner, so never provable); Stage 4
+  isolates it and proves it has teeth (`MerkleAssumption`), rather than faking a
+  discharge.
+
+| *D3 — svalinn: migrate before proving*
+| Prove where the language is final; migrate-then-prove where it is changing.
+  svalinn migrates ReScript → *Ephapax* — Ephapax replaces *all* the ReScript.
+  Its linear/exactly-once types make JWT/JTI single-use & revocation, OAuth
+  nonce/PKCE, and session/container lifecycle *compile-time* guarantees, and typed
+  boundary decoders eliminate the 20+ `Obj.magic`. Its *specifications* are
+  captured now (Disposed Tracks); its *proofs* come after migration. Proving the
+  about-to-be-deleted ReScript is waste. (AffineScript is *not* the target — it
+  surfaced only as a format exemplar for the migration map.)
+|===
+
+== Current proof state (ochrance, canonical)
+
+The core is *clean*: all 19 `ochrance-core` modules carry `%default total` (the
+`src/abi/` tree adds the ABI modules separately); zero
+`believe_me` / `assert_*` / `postulate` / holes / `partial` on any proof symbol.
+
+.Proven, machine-checked (axiom-free)
+[cols="2,3",options="header"]
+|===
+| Theorem | Statement (shape)
+
+| `merkleCorrect` / `merkleCorrectWith`
+| inclusion-proof soundness; generic over the hash combiner `h` (XOR & BLAKE3 are
+  instances). `reconstructWith h leaf prf = rootHashWith h t`.
+| `verifyProofReconstructs(With)`
+| `verifyProofWith h root leaf prf = (root == reconstructWith h leaf prf)`.
+| `reconstructAppendWith`, `powerTwoSucc`, `justInj`
+| supporting lemmas.
+| `buildGetLeaf` (Stage 1.1)
+| constructor round-trip: `getLeafHash (buildMerkleTree hs) (finToNat i) = Just (index i hs)`.
+| `Ochrance.Util.VectLemmas` (×5)
+| reusable transport/append lemmas: `indexAppendLeft` / `indexAppendRight`,
+  `indexReplace`, `finToNatReplace`, `splitAtConcat`.
+| `rootFoldLaw` + `foldRoot` (Stage 1.2)
+| root characterisation: `rootHashWith h (buildMerkleTree hs) = foldRoot h hs` (combiner-generic).
+| `rootHashBytesE_spec` / `verifyProofE_spec` (Stage 1.3)
+| Either-monad folds compute the pure spec on success; production `…IO_spec`
+  theorems hold conditionally on the explicit FFI-reflection hypothesis (`MerkleIO`).
+| `merkleBinding` / `merkleBindingTree` (Stage 1.4)
+| binding *discharged against* the typed hypothesis `CollisionResistant h` (combiner
+  injectivity): `foldRoot h xs = foldRoot h ys -> xs = ys`, and the built-tree-root
+  corollary. Combiner injectivity lifted through the fold; `CollisionResistant h` the
+  sole assumption (`MerkleBinding`) — the irreducible crypto trust root, isolated (not
+  dischargeable) in Stage 4 (`MerkleAssumption`).
+| `constNotCollisionResistant` (Stage 4)
+| the binding hypothesis HAS TEETH: a degenerate combiner (ignores its inputs) provably
+  fails `CollisionResistant` — `Not (CollisionResistant constCombiner)`. Confirms the
+  hypothesis is a genuine constraint; full injectivity is pigeonhole-false for any
+  compressing combiner, so CR is the irreducible cryptographic assumption, never proved
+  (`MerkleAssumption`).
+| `validateManifestSound` (Stage 2.1)
+| validator soundness: `validateManifest m = Right vm` ⇒ supported version,
+  non-empty subsystem, and `All RefValid m.refs` (well-formed-hex hashes). Invariants
+  at the wall-free Bool level; Either-pipeline inversion.
+| `parsePairsRoundtrip` (Stage 2.3)
+| hex codec structural soundness: `parsePairs (bytesToHexChars bs) = Just bs`, given
+  the isolated per-byte `Bits8` hypothesis `HexByteRoundtrip` (`String` pack/unpack
+  wall left explicit).
+| `verifyRefsSound` (Stage 2.2)
+| verifier soundness: `verifyRefsHelper fs refs = Right ()` ⇒ `All (RefMatches fs) refs`
+  — every accepted ref names an in-range block whose stored hash equals the ref's
+  (four-guard per-ref inversion, Bool-level).
+| `repairBlock{Sets,Preserves,NumBlocks,Idempotent}` (Stage 3.1)
+| pure repair primitive correctness over `repairBlockPure`: installs the hash at the
+  index, preserves other indices and the count, idempotent. Wall-free (`Nat`
+  structural `==`: `eqNatReflTrue` / `neqNatFalse`).
+| `rootFaithful` / `rootVerifySound` / `inclusionVerifySound` / `hashToBytes` (Stage 2.4)
+| verify↔Merkle wiring, three modes (generic→granular): root-equivalence (faithful
+  fingerprint, equal roots `<->` equal leaves, via `merkleBindingTree`);
+  inclusion-proof verification (`merkleCorrect` as a per-leaf guarantee); and the live
+  `Hash`↔`HashBytes` decode bridge for snapshot-root verification. Binding (1.4) and
+  inclusion soundness (1.1) carried into the verify use-case.
+| `merkleRootVerifyHashSound` (+ `mapDecodeInjective`) (Stage 2.4 live)
+| live root-verification soundness at the A2ML `Hash` level: two block-hash vectors
+  that decode (`decAll dec`) and build trees with equal roots are equal — carries
+  `rootVerifySound` up across the decoder bridge. The theorem a redesigned
+  root-comparing verifier rests on. Named boundaries: `CollisionResistant h` (1.4),
+  `DecodeInjective dec` (hex wall, 2.3); stated for arbitrary `dec`, used at
+  `hashToBytes`.
+| `repairThenVerify` (+ `verifyRefsComplete`, `repairRefsConsistent`) (Stage 3.2)
+| whole-manifest repair ⇒ verify: `verifyRefsHelper (repairRefsPure s refs) refs =
+  Right ()`. Lemma A `verifyRefsComplete` (completeness — exact converse of 2.2) ∘
+  Lemma B `repairRefsConsistent` (repair installs each ref's hash and protects it from
+  later repairs, via `repairBlockSets` / `repairRefsPurePreserves`). Honest hypotheses:
+  `GoodRefs` (distinct in-range parseable names) and `hashRefl` (primitive `Hash` `==`
+  reflexivity).
+| `roundtripManifest` + sub-codecs (`algoRT`, `modeRT`, `refsRT`, `mpolRT`, …)
+| grammar invertibility: `decodeManifest (encodeManifest m) = Just m`.
+| `SatisfiesMinimum` / `attestedSatisfiesLax`
+| progressive-assurance threshold witness.
+| ABI `Handle` / `createHandle`
+| `So (ptr /= 0)` non-null invariant discharged via `choose`.
+|===
+
+== The remaining proof program (dependency-sorted)
+
+Each stage is sized to roughly one context window; the thread compacts at each
+boundary with this file as the hand-off. *Watch-fors* are things that may force a
+design change or a model downshift mid-stage.
+
+=== Stage 1 — Merkle closure + crypto-binding interface  [model: Opus]
+
+. *[DONE — 1.1]* `buildMerkleTree` ↔ `getLeafHash` round-trip:
+  `getLeafHash (buildMerkleTree hs) (finToNat i) = Just (index i hs)`
+  (`buildGetLeaf` in `Ochrance.Filesystem.MerkleBuild`, on the reusable
+  `Ochrance.Util.VectLemmas` lemmas). Machine-checked, axiom-free, on `main`.
+. *[DONE — 1.2]* Root-fold law: `rootHashWith h (buildMerkleTree hs) = foldRoot h hs`
+  (`rootFoldLaw` + `foldRoot` in `Ochrance.Filesystem.MerkleBuild`) — the root is a
+  deterministic, representation-independent fold over the leaves. Combiner-generic;
+  prerequisite of the binding argument. Machine-checked, axiom-free.
+. *[DONE — 1.3]* IO↔pure bridge (decompose): the pure `Either`-monad mirrors
+  `rootHashBytesE` / `verifyProofE` provably compute the spec — `rootHashBytesE_spec`:
+  `= Right (rootHashWith h t)`, `verifyProofE_spec`: `= Right (verifyProofWith h …)`
+  when `cf` models `h` — fully machine-checked ("modulo the Either plumbing"). The
+  opaque-IO step (IO fold = `pure` of its pure mirror) is the *sole* assumed boundary,
+  passed as an explicit `reflect` hypothesis (no `postulate`/`believe_me`); the
+  production theorems `rootHashBytesIO_spec` / `verifyProofIO_spec` hold conditionally
+  on it. `Ochrance.Filesystem.MerkleIO`.
+. *[DONE — 1.4] D2*: `CollisionResistant h` (combiner injectivity) introduced and
+  `merkleBinding` *discharged against it* — not merely stated. Equal leaf folds
+  (roots) force equal leaves: `foldRoot h xs = foldRoot h ys -> xs = ys`, with
+  `merkleBindingTree` the built-tree-root corollary (via `rootFoldLaw`). The proof
+  lifts combiner injectivity through the fold (Stage 1.2 is its prerequisite);
+  `CollisionResistant h` is the *sole* assumed hypothesis — no `postulate` /
+  `believe_me` — and the irreducible cryptographic trust root (Stage 4 isolates it,
+  does not discharge it — pigeonhole-false; see `MerkleAssumption`). New reusable
+  lemmas `splitAtEta` / `replaceInj` in `VectLemmas`.
+  `Ochrance.Filesystem.MerkleBinding`. Machine-checked (idris2 0.8.0, `--total`).
+  *This pulls the Stage 4 binding-discharge forward to its hypothesis.*
++
+RESOLVED (was WATCH-FOR): the `replace`-by-`powerTwoSucc` transport in
+`buildMerkleTree` was discharged *without* reshaping the builder — via the
+`indexReplace` / `finToNatReplace` / `splitAtConcat` transport-cancellation lemmas
+in `VectLemmas`. No API change was forced.
+
+=== Stage 2 — Verify + Validator soundness  [model: Opus → Sonnet if mechanical]
+
+. *[DONE — 2.1]* Validator soundness: a manifest accepted by `validateManifest`
+  satisfies the structural invariants it checks — supported version, non-empty
+  subsystem, and well-formed-hex ref hashes (`All RefValid m.refs`). `ValidManifest`
+  is therefore a genuine validity witness, proved by inverting the Either-monad
+  validation pipeline. `validateManifestSound` in `Ochrance.A2ML.ValidatorProof`
+  (helpers `traverseRefsSound` / `validRefSound`). Machine-checked
+  (idris2 0.8.0, `--total`), axiom-free.
++
+HONEST FORM (was WATCH-FOR, confirmed): invariants are stated at the *decision
+(Bool) level* — `isVersionSupported v = True`, `(sub == "") = False`,
+`isValidHexString h = True` — not inverted into propositional `String` facts
+(`v = "0.1.0"`, `Not (sub = "")`): `String` equality is primitive, so the Bool
+form is the strongest honest statement. Two reduction subtleties recorded for
+reuse: (i) `traverse_` for `Either` desugars through `<*>` and `Right () *> y` is
+only `map id y` (functor-identity *law*, not definitional) — so invert by casing
+on the head outcome *and* the tail fold, keeping each step definitional; (ii) `with`
+abstracts only a hypothesis's WHNF, so case on `validateRef ref` (exposed there),
+not the nested `isValidHexString`.
+
+. *[DONE — 2.2 (inversion); merkle-wiring deferred]* `verify` soundness. Lifted
+  `verifyRefsHelper` / `parseBlockIdx` out of the instance `where` to top-level
+  `public export`, then proved `verifyRefsSound`:
+  `verifyRefsHelper fs refs = Right () -> All (RefMatches fs) refs` — acceptance ⇒
+  every ref names an in-range block whose stored hash equals the ref's (Bool-level
+  `h == ref.hash = True`), by inverting the four per-ref guards (name-parse, range,
+  block-present, hash-equal). `Ochrance.Filesystem.VerifyProof`. Machine-checked,
+  axiom-free.
++
+WIRED (Stage 2.4), three modes generic→granular in `Ochrance.Filesystem.VerifyMerkle`:
+(1) *root-equivalence* — `rootFaithful` proves the root is a FAITHFUL fingerprint
+(equal roots `<->` equal leaves; forward = `merkleBindingTree` / `CollisionResistant
+h`, backward = congruence) and `rootVerifySound` is the security reading (matching
+committed root ⇒ identical blocks); (2) *inclusion-proof* — `inclusionVerifySound`
+re-exposes `merkleCorrect` (1.1) as a per-leaf verification guarantee; (3) *live
+bridge* — `hashToBytes` decodes A2ML `Hash` → Merkle `HashBytes` for snapshot-root
+verification, composing with `rootVerifySound`.
++
+SOUNDNESS PROVEN (`merkleRootVerifyHashSound`): replacing the live `Hash`-based
+`verifyRefsHelper` with a root comparison is now *sound* at the `Hash` level - two
+block-hash vectors that decode and yield equal Merkle roots are equal - carrying
+`rootVerifySound` up across the decoder bridge (`mapDecodeInjective`). Two named
+boundaries: `CollisionResistant h` (1.4) and `DecodeInjective dec` (the hex wall,
+2.3); stated for an arbitrary `dec`, instantiated at `hashToBytes`.
++
+DONE (plumbing): `Ochrance.Filesystem.VerifyRoot` - `padToLength` + `nextPow2Exp` +
+`layoutLeaves` pad an arbitrary-length block list to a power-of-two leaf `Vect`;
+`verifyByRoot` / `verifyByRootHash` build the tree and compare roots; `fsBlockHashes`
++ `verifySnapshotRoot` are the runtime path against `FSSnapshot.rootHash`. Executable,
+total; its accept-on-match soundness is `merkleRootVerifyHashSound`.
+
+. *[DONE — 2.3]* Hex codec structural round-trip. The full
+  `hexStringToBytes (bytesToHex bs) = Just bs` crosses two primitive walls —
+  `unpack∘pack` (no equational theory; the lexer-round-trip wall) and per-byte
+  `Bits8` `div`/`mod`. The honest, axiom-free *core* is now proven:
+  `parsePairsRoundtrip` shows `parsePairs (bytesToHexChars bs) = Just bs` —
+  `parsePairs` inverts `bytesToHexChars` exactly — *given* the isolated per-byte
+  hypothesis `HexByteRoundtrip` (the `Bits8` boundary, named not faked,
+  IO↔pure-bridge style). Required lifting `toPair`→`toHexPair` and `bytesToHexChars`
+  to top-level (the builder recurses explicitly, dodging the non-reducing
+  `concatMap` Monoid layer — same hazard as `traverse_`) and exposing `parsePairs`.
+  `Ochrance.Util.HexProof`. Machine-checked.
+
+=== Stage 3 — Repair correctness (L3, linear types)  [model: Opus]
+
+RESOLVED (was PRECONDITION): the pure repair core is now factored out —
+`repairBlockPure : FSState -> BlockIndex -> Hash -> FSState` installs a hash in the
+map, and the IO `repairBlock` is `repairBlockPure` + the range check (IO↔pure
+pattern). Because FSState's verifiable content *is* its hash map (it carries no
+separate block data), this is the genuine repair semantics, so the theorems are
+well-founded, not vacuous.
+
+. *[DONE — 3.1]* Pure repair primitive correctness, machine-checked
+  (`Ochrance.Filesystem.RepairProof`, axiom-free): `repairBlockSets` (the repaired
+  index now holds the new hash), `repairBlockPreserves` (every other index
+  untouched), `repairBlockNumBlocks` (block count preserved), and
+  `repairBlockIdempotent` (repairing the same (index, hash) twice = once) — the
+  ledger's "idempotence as a proof", delivered. The index test is `Nat` `==`
+  (structural — `eqNatReflTrue` / `neqNatFalse`), so wall-free, unlike the primitive
+  `Hash` `==`.
+. *[DONE — 3.2]* Whole-manifest repair ⇒ verify:
+  `verifyRefsHelper (repairRefsPure s refs) refs = Right ()`
+  (`Ochrance.Filesystem.RepairVerify`, `repairThenVerify`). Composes 2.2's verifier
+  with the 3.1 lemmas via completeness (`verifyRefsComplete`, the converse of
+  `verifyRefsSound`) ∘ repair-consistency (`repairRefsConsistent`). The two needed
+  boundaries are named, not faked: precondition `GoodRefs` (ref names parse to
+  *distinct* in-range indices — else a later repair clobbers an earlier ref's block,
+  consumed in the no-clobber lemma `repairRefsPurePreserves`), and the isolated
+  `Hash`-reflexivity hypothesis `hashRefl : (h == h) = True` (the primitive `==` wall,
+  as in `merkleCorrect`'s residual step). Machine-checked, totality-clean.
+. Harvest framework's mode-indexed Interface; state the `VerifiedSubsystem` law and
+  prove the FSState instance satisfies it.
++
+WATCH-FOR: may need proof witnesses threaded through the `1`-quantified API —
+possible signature changes to `Repair.idr`.
+
+=== Stage 4 — Completeness, binding discharge, write-up  [model: Sonnet; Opus if binding is hard]
+
+. Merkle *completeness* (converse of soundness): in-range leaf ⇒ a proof exists.
+. *[DONE — D2] CR isolated, not discharged*: the binding argument is proven against
+  `CollisionResistant h` (Stage 1.4). The hypothesis itself CANNOT be discharged — full
+  injectivity is pigeonhole-false for a compressing combiner — so Stage 4 isolates it
+  as the irreducible cryptographic trust root and proves it has teeth
+  (`constNotCollisionResistant`, `MerkleAssumption`). Optional follow-on engineering:
+  wire the real Zig/FFI combiner in and declare CR as its explicit assumption.
+. Progressive monotonicity: the remaining `SatisfiesMinimum` cases (all `Refl`).
+. Final ledger pass; thesis-aligned summary (ICFP/PLDI/SOSP framing).
+
+CLEAR = every intended theorem proven *or honestly bounded* (primitive walls
+documented, never faked), disposed tracks handed off, PRs landed.
+
+== The IO↔pure bridge (estate-wide spine)
+
+The same device recurs at *every* IO boundary — Merkle (1.3), Verify (2.2),
+Repair (3), signatures (4 / bounded). The shape is always:
+
+  pure spec (proven) --[extensional-equality lemma]--> IO production path
+                                                       (modulo `Either`
+                                                        allocation-failure +
+                                                        a typed crypto hypothesis)
+
+Treating this as *one* architectural pattern — not four ad-hoc stage items — is what
+lets the proven backdrop reach production code *without ever faking the FFI*. The
+typed crypto hypotheses (`CollisionResistant h`; `hashPairBlake3 a b` equals the
+spec combiner) are introduced in Stage 1.4 and discharged-or-assumed explicitly,
+never silently. It is also the mechanism that licenses optimisation (below).
+
+== Build-with-proofs discipline
+
+The invariant: *code never outstrips proofs*. Operationally —
+
+. A correctness-claiming `public export` symbol lands only when (a) it carries its
+  lemma in the same PR, or (b) it is explicitly `-- UNPROVEN:`-marked with a tracking
+  issue, or (c) it is a documented honestly-bounded wall. No silent (d).
+. The `--total` CI build *is* the totality proof (already enforced) — a green build
+  is the floor, not the ceiling.
+. *No proving stubs.* If an implementation is a placeholder (Repair today), make it
+  real or model it purely *first* — never point a theorem at a no-op.
+. This ledger's proven-surface table is the source of truth; `README` / `TOPOLOGY`
+  must not claim beyond it.
+
+== Optimisation ledger (against the proven backdrop)
+
+Governing principle: *the proven surface is exactly the code you may optimise* — the
+proof is the optimisation's regression contract. Keep the simple reference `R`
+(proven), introduce optimised `F`, discharge `F x = R x`, and every theorem about `R`
+transports to `F` by `rewrite`. Never optimise unproven code (nothing guards it).
+
+[cols="1,2,2,1",options="header"]
+|===
+| Target | Optimisation | Guard | Status
+
+| `buildMerkleTree`
+| bottom-up O(n) fold from the flat vector (vs. per-level `replace`/`splitAt`)
+| `buildFast hs = buildMerkleTree hs` ⇒ `buildGetLeaf` transports
+| unlocked now
+
+| `getLeafHash`
+| thread a `Fin` index; drop Nat `minus`/`<`
+| `getLeafFast t i = getLeafHash t (finToNat i)`
+| unlocked now
+
+| `generateProof` / `reconstruct`
+| difference-list / vector path (vs. List append per step)
+| `reconstructAppendWith` + `merkleCorrectWith`
+| unlocked now
+
+| root combiner
+| real BLAKE3 in IO (vs. abstract `h`)
+| `rootHashBytesIO_spec` / `verifyProofIO_spec` (given the FFI-reflection hypothesis)
+| unlocked (Stage 1.3)
+
+| A2ML production parser
+| any fast String parser
+| `roundtripManifest` + runtime `roundtripProperty` net
+| bounded (prim. wall)
+
+| Repair (incremental / CoW)
+| touch only broken blocks
+| `verify (repair s) = Valid`
+| after Stage 3
+|===
+
+== Honestly-bounded items (NOT failures — boundaries by design)
+
+* *Production-pipeline round-trip* (`parse . lex . serialize = Right m`) cannot
+  carry a compile-time theorem: `pack`/`unpack`/`parseInteger` are primitives with
+  no equational theory. The honest guarantee is `roundtripManifest` over a
+  reference token codec, complemented by `roundtripProperty` at runtime.
+* *`root == root` Bool step* in `merkleCorrect`: the propositional digest equality
+  is the strongest honest statement; discharging the residual primitive-`Bits8`
+  `==` would need an unsafe reflexivity axiom.
+
+== Disposed tracks (handoff briefs)
+
+These are *not* this thread's work. Each is a brief for a delegated session,
+disposed at Compaction 1. Specs live here so nothing is lost.
+
+=== svalinn — migrate ReScript → Ephapax, then verify  [model: Sonnet]
+
+PRECONDITION: language migration precedes proof (Decision D3). The *first*
+deliverable is a migration map (the critical chain of blockers) — handed to an
+offline Claude with `hyperpolymath/ephapax` access, targeting
+`svalinn/docs/ephapax-migration/BLOCKER-LINEAGE.adoc`. ROOT of that chain, and the
+one thing this session could not settle (ephapax is out of scope here): whether
+Ephapax is yet an implementable application language (compiler, runtime,
+HTTP/async I/O, JSON, fetch, crypto, FFI) or still a proof-level calculus.
+
+. *Migrate* ReScript → Ephapax (gateway, auth, policy, validation, MCP, vörðr,
+  compose; ~27 `src/` modules + the `ui/` ReScript frontend). Typed boundary
+  decoders make the *20+ `Obj.magic`* casts in security paths impossible.
+. *Ephapax linear tokens* for exactly-once resources: JWT/JTI single-use + the
+  revocation ledger (fixes the `hasRevocationList = false // TODO` hazard by
+  construction), OAuth nonce/PKCE, session/container lifecycle, vörðr delegation.
+. *Unblock CI*: the 53 ReScript unit/security tests don't execute under Deno
+  (`@rescript/core` resolution) — they vanish with the migration; ensure the
+  Ephapax suite runs in CI. (svalinn `main` CI is currently red on pre-existing
+  ReScript breakage — do not fix it in ReScript; it is being replaced.)
+. *Specs to discharge after migration* (language-agnostic): policy determinism;
+  `allow ∩ deny` composition + monotonicity; JWT single-use & revocation;
+  no unchecked boundary casts; JSON-Schema conformance of all 9 gateway types.
+. *Planned SPARK properties* (`cerro-torre-integration.adoc §6.2`): attestation
+  sig, key lookup, threshold sig, log inclusion, policy eval.
++
+DEPENDENCY: Ephapax has *3 Admitted* (Coq) — svalinn's linear guarantees inherit
+those holes until closed. Track upstream.
++
+DISCHARGES: svalinn security issue #13 (19 Critical/High panic-attack findings —
+`decodeJwt()` without `jwtVerify()`, `JSON.parseExn`) is addressed structurally by
+this migration (verified JWT + typed deserialisation), not by patching ReScript.
++
+RE-ENTRY: the outbound charter now lives at
+`svalinn/docs/ephapax-migration/HANDOFF.adoc`; when this track *returns*, read
+`docs/AFTER-MIGRATION.adoc` (the round-trip closure) before resuming the campaign.
+
+=== ochrance-framework — retire core, harvest Interface, keep docs  [model: Sonnet]
+
+. Delete `ochrance-framework/ochrance-core`; make the repo depend on / reference
+  the canonical ochrance core.
+. Harvest the mode-indexed `VerifiedSubsystem` Interface into ochrance (Stage 3).
+. Fix the weak spots that should *not* be carried over: `decodeSnapshot` always
+  returns `Nothing` (repair unreachable); `signatureValid : Bool` and
+  `allPresent : Bool` are unguarded runtime flags; no totality gate in CI.
+. Keep and maintain the docs — they are the framework repo's real value.
+
+=== ochrance ABI / Zig FFI hardening  [model: Sonnet/Haiku]
+
+. `blake3Hash` in `src/abi/Ochrance/ABI/Foreign.idr` is `covering` + a stub
+  returning `replicate 32 0` — wire it to the real Zig `libochrance` BLAKE3.
+. ECHIDNA FFI is entirely stubbed (`echidnaProve` returns
+  `Left "FFI not yet implemented"`).
+
+=== CI watch — PR #32  [model: Haiku/Sonnet]
+
+Keep PR #32 (combiner generalisation) shepherded to green; it is subscribed.
+
+== Model guidance (per the thread's operating model)
+
+[cols="1,3",options="header"]
+|===
+| Model | Use
+
+| *Opus 4.8*
+| Proof *discovery* — "is this provable, what is the shape": Stages 1, 3, and any
+  novel theorem or structural-wall reasoning.
+| *Sonnet 4.6*
+| Proof *mechanisation* (known shape), refactors, tests, and the disposed-track
+  application work (svalinn Ephapax migration, framework, ABI).
+| *Haiku 4.5*
+| Grunt sweeps — suites, grep, SPDX/format, CI watch.
+|===
+
+RULE: when a stage's remaining work is all mechanical, downshift this thread to
+Sonnet to conserve Opus budget; when a *research-grade wall* appears, pause for the
+design conversation rather than pushing proofs.
