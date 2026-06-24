@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: CC-BY-SA-4.0
 // Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
 = Ochránce ↔ Valence Shell ↔ Echo Types: A Documentation Bridge
 Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
@@ -288,6 +288,6 @@ assert, and must not be cited as asserting, any of the following:
 
 == License
 
-SPDX-License-Identifier: MPL-2.0
+SPDX-License-Identifier: CC-BY-SA-4.0
 
 Copyright (C) 2026 Jonathan D.A. Jewell. All rights reserved.
