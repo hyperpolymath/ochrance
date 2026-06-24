@@ -1,4 +1,5 @@
 -- SPDX-License-Identifier: MPL-2.0
+-- Copyright (c) Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
 ||| Ochrance.ABI.Foreign — High-Assurance Hashing Interface.
 |||
 ||| This module defines the formal bridge to the native Zig-implemented 

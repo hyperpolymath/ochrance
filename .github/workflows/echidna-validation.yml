@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: MPL-2.0
 name: ECHIDNA Validation
-
 on:
   push:
     paths:
@@ -16,19 +15,17 @@ on:
       - 'modules/**'
       - 'src/abi/**'
   schedule:
-    - cron: '0 6 * * 1'  # Weekly on Monday at 06:00 UTC
-
+    - cron: '0 6 * * 1' # Weekly on Monday at 06:00 UTC
 permissions:
   contents: read
-
 jobs:
   echidna-totality:
     name: ECHIDNA Totality & Safety Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
-
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - name: Dangerous pattern scan (Idris2)
         run: |
           echo "=== Idris2 Dangerous Pattern Scan (code only; comments excluded) ==="
@@ -57,7 +54,6 @@ jobs:
             echo "FAIL: Dangerous patterns detected in Idris2 code" >&2
             exit 1
           fi
-
       - name: Totality enforcement check
         run: |
           echo "=== Totality Enforcement ==="
@@ -72,7 +68,6 @@ jobs:
           if [ "$MISSING" -gt 0 ]; then
             echo "WARNING: Some modules lack totality enforcement"
           fi
-
       - name: Partial function check
         run: |
           echo "=== Partial Function Check ==="
@@ -82,7 +77,6 @@ jobs:
             echo "Review required:"
             grep -rn "^partial" ochrance-core/ src/abi/ --include="*.idr" 2>/dev/null
           fi
-
       - name: FFI stub status
         run: |
           echo "=== FFI Stub Status ==="
@@ -92,7 +86,6 @@ jobs:
           else
             echo "INFO: Echidna FFI may be implemented — verify libechidna.so linkage"
           fi
-
       - name: Zig FFI safety check
         if: hashFiles('ffi/zig/src/*.zig') != ''
         run: |
@@ -104,7 +97,6 @@ jobs:
               grep -rn "$pattern" ffi/zig/src/ --include="*.zig" 2>/dev/null
             fi
           done
-
       - name: Summary
         run: |
           echo "## ECHIDNA Validation Results" >> $GITHUB_STEP_SUMMARY

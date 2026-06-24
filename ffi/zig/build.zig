@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MPL-2.0
+// Copyright (c) Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
 //
 // Minimum Zig version: 0.11.0
 // Required for: std.crypto.hash.Blake3, C ABI export, @memcpy builtin
