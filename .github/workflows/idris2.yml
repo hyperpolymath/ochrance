@@ -1,0 +1,59 @@
+# SPDX-License-Identifier: MPL-2.0
+# Idris2 proof + test gate.
+#
+# This is the job that makes the proof ledger (docs/PROOFS.adoc) CI-enforced:
+# `idris2 --build ochrance.ipkg` type-checks all core modules under
+# `%default total` (opts = "--total" in the ipkg), so every theorem in
+# ochrance-core either machine-checks here or the build goes red. It then
+# runs the three Idris test suites and the Idris->Zig runtime FFI test
+# (tests/ffi/run_ffi_test.sh), which proves the production Merkle path
+# computes real BLAKE3 across the %foreign boundary.
+#
+# Toolchain: ghcr.io/stefan-hoeck/idris2-pack ships Idris 2 v0.8.0 (the
+# exact version this repo requires) + chezscheme/gcc/make. Digest-pinned;
+# bump deliberately, not via :latest drift.
+name: Idris2
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  idris2:
+    name: Idris2 proofs + tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container:
+      image: ghcr.io/stefan-hoeck/idris2-pack@sha256:7116e4fc2c68ff6345139a55d908e9dd1c7acabaf197c32e709deae3448dd7d7 # :latest @ 2026-07-01, Idris 2 v0.8.0
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Set up Zig 0.15.2 (for the FFI runtime test)
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: 0.15.2
+      - name: Build core (type-checks all modules under --total)
+        run: idris2 --build ochrance.ipkg
+      - name: Install package (needed by the test ipkgs)
+        run: idris2 --install ochrance.ipkg
+      - name: A2ML parser tests
+        run: |
+          idris2 --build tests/A2ML/tests.ipkg
+          ./tests/A2ML/build/exec/a2ml-tests
+      - name: Property tests
+        run: |
+          idris2 --build tests/property/tests.ipkg
+          ./tests/property/build/exec/property-tests
+      - name: Integration tests
+        run: |
+          idris2 --build tests/integration/tests.ipkg
+          ./tests/integration/build/exec/integration-tests
+      - name: Idris -> Zig FFI runtime test (real BLAKE3 across %foreign)
+        run: bash tests/ffi/run_ffi_test.sh

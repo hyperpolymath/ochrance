@@ -9,6 +9,7 @@
 
 module IntegrationTests
 
+import System
 import Data.Vect
 import Ochrance.A2ML.Types
 import Ochrance.A2ML.Lexer
@@ -35,12 +36,16 @@ Show TestResult where
   show Pass = "PASS"
   show (Fail msg) = "FAIL: " ++ msg
 
-||| Test case wrapper
+||| Test case wrapper. Fail-fast: a failing case ends the run with exit
+||| code 1, so CI actually gates on this suite instead of always going green.
 testCase : String -> IO TestResult -> IO ()
 testCase name test = do
   putStr (name ++ " ... ")
   result <- test
   putStrLn (show result)
+  case result of
+    Fail _ => exitFailure
+    Pass   => pure ()
 
 ||| Create a test filesystem state
 createTestFS : Nat -> FSState

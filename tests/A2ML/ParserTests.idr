@@ -12,6 +12,7 @@ import Ochrance.A2ML.Lexer
 import Ochrance.A2ML.Parser
 import Ochrance.A2ML.Serializer
 import Ochrance.A2ML.Types
+import System
 
 %default total
 
@@ -19,9 +20,16 @@ import Ochrance.A2ML.Types
 -- Test Helpers
 --------------------------------------------------------------------------------
 
+||| Report a failure and exit nonzero, so CI actually gates on this suite
+||| (fail-fast: the first failure ends the run with exit code 1).
+failWith : String -> IO ()
+failWith msg = do
+  putStrLn msg
+  exitFailure
+
 ||| Assert that a value is Right
 assertRight : Show e => Either e a -> IO ()
-assertRight (Left err) = putStrLn ("FAIL: " ++ show err)
+assertRight (Left err) = failWith ("FAIL: " ++ show err)
 assertRight (Right _) = pure ()
 
 ||| Assert two values are equal
@@ -29,7 +37,7 @@ assertEqual : (Eq a, Show a) => a -> a -> IO ()
 assertEqual expected actual =
   if expected == actual
      then pure ()
-     else putStrLn ("FAIL: Expected " ++ show expected ++ ", got " ++ show actual)
+     else failWith ("FAIL: Expected " ++ show expected ++ ", got " ++ show actual)
 
 ||| Test case wrapper
 testCase : String -> IO () -> IO ()
@@ -107,27 +115,27 @@ lexerTests = do
   testCase "Lex empty string" $ do
     case lex "" of
       Right tokens => assertEqual [EOF] tokens
-      Left err => putStrLn ("FAIL: " ++ show err)
+      Left err => failWith ("FAIL: " ++ show err)
 
   testCase "Lex minimal manifest" $ do
     case lex minimalManifest of
       Right tokens => pure ()  -- Success if no error
-      Left err => putStrLn ("FAIL: " ++ show err)
+      Left err => failWith ("FAIL: " ++ show err)
 
   testCase "Lex with attestation" $ do
     case lex attestedManifest of
       Right tokens => pure ()
-      Left err => putStrLn ("FAIL: " ++ show err)
+      Left err => failWith ("FAIL: " ++ show err)
 
   testCase "Lex with policy" $ do
     case lex policyManifest of
       Right tokens => pure ()
-      Left err => putStrLn ("FAIL: " ++ show err)
+      Left err => failWith ("FAIL: " ++ show err)
 
   testCase "Lex rejects invalid characters" $ do
     case lex "@manifest { version = \x00 }" of
       Left _ => pure ()  -- Should fail
-      Right _ => putStrLn "FAIL: Should reject null bytes"
+      Right _ => failWith "FAIL: Should reject null bytes"
 
 --------------------------------------------------------------------------------
 -- Parser Tests
@@ -145,8 +153,8 @@ parserTests = do
           Right manifest => do
             assertEqual "0.1.0" manifest.manifestData.version
             assertEqual "test" manifest.manifestData.subsystem
-          Left err => putStrLn ("FAIL: " ++ show err)
-      Left err => putStrLn ("FAIL lex: " ++ show err)
+          Left err => failWith ("FAIL: " ++ show err)
+      Left err => failWith ("FAIL lex: " ++ show err)
 
   testCase "Parse attested manifest" $ do
     case lex attestedManifest of
@@ -154,12 +162,12 @@ parserTests = do
         case parse tokens of
           Right manifest => do
             case manifest.attestation of
-              Nothing => putStrLn "FAIL: Expected attestation"
+              Nothing => failWith "FAIL: Expected attestation"
               Just att => do
                 assertEqual "test-witness" att.witness
                 assertEqual "sig123" att.signature
-          Left err => putStrLn ("FAIL: " ++ show err)
-      Left err => putStrLn ("FAIL lex: " ++ show err)
+          Left err => failWith ("FAIL: " ++ show err)
+      Left err => failWith ("FAIL lex: " ++ show err)
 
   testCase "Parse policy manifest" $ do
     case lex policyManifest of
@@ -167,14 +175,14 @@ parserTests = do
         case parse tokens of
           Right manifest => do
             case manifest.policy of
-              Nothing => putStrLn "FAIL: Expected policy"
+              Nothing => failWith "FAIL: Expected policy"
               Just pol => do
                 assertEqual Checked pol.mode
                 case pol.maxAge of
-                  Nothing => putStrLn "FAIL: Expected max_age"
+                  Nothing => failWith "FAIL: Expected max_age"
                   Just age => assertEqual 3600 age
-          Left err => putStrLn ("FAIL: " ++ show err)
-      Left err => putStrLn ("FAIL lex: " ++ show err)
+          Left err => failWith ("FAIL: " ++ show err)
+      Left err => failWith ("FAIL lex: " ++ show err)
 
   testCase "Parse rejects duplicate sections" $ do
     let duplicateManifest = minimalManifest ++ "\n@manifest { version = \"0.2.0\" }\n"
@@ -182,7 +190,7 @@ parserTests = do
       Right tokens =>
         case parse tokens of
           Left _ => pure ()  -- Should fail
-          Right _ => putStrLn "FAIL: Should reject duplicate sections"
+          Right _ => failWith "FAIL: Should reject duplicate sections"
       Left _ => pure ()  -- Lex error also acceptable
 
 --------------------------------------------------------------------------------
@@ -206,10 +214,10 @@ roundtripTests = do
                   Right manifest2 => do
                     assertEqual manifest1.manifestData.version manifest2.manifestData.version
                     assertEqual manifest1.manifestData.subsystem manifest2.manifestData.subsystem
-                  Left err => putStrLn ("FAIL parse2: " ++ show err)
-              Left err => putStrLn ("FAIL lex2: " ++ show err)
-          Left err => putStrLn ("FAIL parse1: " ++ show err)
-      Left err => putStrLn ("FAIL lex1: " ++ show err)
+                  Left err => failWith ("FAIL parse2: " ++ show err)
+              Left err => failWith ("FAIL lex2: " ++ show err)
+          Left err => failWith ("FAIL parse1: " ++ show err)
+      Left err => failWith ("FAIL lex1: " ++ show err)
 
 --------------------------------------------------------------------------------
 -- Error Handling Tests
@@ -226,7 +234,7 @@ errorHandlingTests = do
       Right tokens =>
         case parse tokens of
           Left _ => pure ()  -- Should fail
-          Right _ => putStrLn "FAIL: Should require version field"
+          Right _ => failWith "FAIL: Should require version field"
       Left _ => pure ()  -- Lex error also acceptable
 
   testCase "Invalid hash format" $ do
@@ -235,14 +243,14 @@ errorHandlingTests = do
       Right tokens =>
         case parse tokens of
           Left _ => pure ()  -- Should fail
-          Right _ => putStrLn "FAIL: Should reject invalid hash format"
+          Right _ => failWith "FAIL: Should reject invalid hash format"
       Left _ => pure ()  -- Lex error also acceptable
 
   testCase "Unterminated string" $ do
     let invalid = "@manifest { version = \"unterminated }"
     case lex invalid of
       Left _ => pure ()  -- Should fail at lex stage
-      Right _ => putStrLn "FAIL: Should reject unterminated string"
+      Right _ => failWith "FAIL: Should reject unterminated string"
 
 --------------------------------------------------------------------------------
 -- Main Test Runner
