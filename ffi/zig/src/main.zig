@@ -210,7 +210,7 @@ export fn ochrance_build_info() [*:0]const u8 {
 //==============================================================================
 
 /// Callback function type (C ABI)
-pub const Callback = *const fn (u64, u32) callconv(.C) u32;
+pub const Callback = *const fn (u64, u32) callconv(.c) u32;
 
 /// Register a callback
 export fn ochrance_register_callback(
@@ -260,7 +260,7 @@ export fn ochrance_is_initialized(handle: ?*Handle) u32 {
 //   int  ed25519_verify(const uint8_t sig[64], const uint8_t pk[32],
 //                       const uint8_t* msg, size_t msg_len);  // 1=valid, 0=invalid
 //
-// Backed by Zig's audited std.crypto (Zig 0.11.0). These replace the XOR/zero
+// Backed by Zig's audited std.crypto (Zig 0.15+). These replace the XOR/zero
 // placeholder hashes; see ROADMAP Phase 1 and docs/VALENCE_SHELL_BRIDGE.adoc,
 // which gate cryptographic-integrity claims on closing exactly this gap.
 //==============================================================================
@@ -368,7 +368,7 @@ test "sha3_256_hash known-answer vectors" {
 
 test "ed25519_verify accepts valid and rejects tampered" {
     const seed = [_]u8{42} ** 32;
-    const kp = try Ed25519.KeyPair.create(seed);
+    const kp = try Ed25519.KeyPair.generateDeterministic(seed);
     const message: []const u8 = "ochrance attestation";
     const signature = try kp.sign(message, null);
     const sig_bytes = signature.toBytes();

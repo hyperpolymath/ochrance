@@ -7,7 +7,7 @@
 # The web container is ephemeral and cloned fresh, so the toolchains this repo
 # needs are reinstalled at session start:
 #   - Idris2  v0.8.0  (core framework, proofs, parser, verification)
-#   - Zig     0.11.0  (cryptographic FFI in ffi/zig)
+#   - Zig     0.15.2  (cryptographic FFI in ffi/zig)
 #   - just            (build/recipe runner; `just build`, `just check`, ...)
 #   - Agda    2.6.3   (estate formal-verification toolchain)
 #
@@ -41,10 +41,10 @@ if ! { have just && have agda && have idris2; }; then
     || log "WARN: some apt packages failed to install"
 fi
 
-# --- Zig 0.11.0 via the PyPI ziglang package (ziglang.org is blocked) -------
+# --- Zig 0.15.2 via the PyPI ziglang package (ziglang.org is blocked) -------
 if ! have zig; then
-  log "installing Zig 0.11.0 via PyPI ziglang ..."
-  if pip3 install --break-system-packages --quiet "ziglang==0.11.0"; then
+  log "installing Zig 0.15.2 via PyPI ziglang ..."
+  if pip3 install --break-system-packages --quiet "ziglang==0.15.2"; then
     cat > /usr/local/bin/zig <<'SH'
 #!/bin/sh
 # Thin shim exposing the PyPI `ziglang` package as a `zig` command.

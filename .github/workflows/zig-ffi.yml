@@ -26,10 +26,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      - name: Set up Zig 0.11.0
+      - name: Set up Zig 0.15.2
         uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
-          version: 0.11.0
+          version: 0.15.2
       - name: Build (libochrance.so + libochrance.a)
         working-directory: ffi/zig
         run: zig build

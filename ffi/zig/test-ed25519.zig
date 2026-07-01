@@ -6,7 +6,7 @@ const Ed25519 = std.crypto.sign.Ed25519;
 pub fn main() !void {
     // Create a keypair
     const seed: [32]u8 = [_]u8{1} ** 32;
-    const keypair = try Ed25519.KeyPair.create(seed);
+    const keypair = try Ed25519.KeyPair.generateDeterministic(seed);
     
     // Sign something
     const message = "test";
@@ -19,8 +19,8 @@ pub fn main() !void {
     const sig_bytes = sig.toBytes();
     std.debug.print("Signature bytes length: {}\n", .{sig_bytes.len});
     
-    // Try fromBytes
-    const sig2 = try Ed25519.Signature.fromBytes(sig_bytes);
+    // Try fromBytes (infallible since Zig 0.12: returns Signature directly)
+    const sig2 = Ed25519.Signature.fromBytes(sig_bytes);
     _ = sig2;
     
     std.debug.print("Success!\n", .{});

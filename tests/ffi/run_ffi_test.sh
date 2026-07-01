@@ -9,7 +9,7 @@
 # means the production verification path (blake3 / rootHashBytesIO / ...) computes
 # real BLAKE3 across the %foreign boundary — not the XOR spec combiner.
 #
-# Requires: idris2 (>= 0.8.0) and zig (>= 0.11.0). Overridable: ZIG, IDRIS2.
+# Requires: idris2 (>= 0.8.0) and zig (>= 0.15.0). Overridable: ZIG, IDRIS2.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
