@@ -90,7 +90,7 @@ assert "build.zig configures library" \
 assert "build.zig emits libochrance.so (no stale 'ochrance-shared' name)" \
     "$(! grep -q "ochrance-shared" "$BASE/ffi/zig/build.zig" && echo 0 || echo 1)"
 assert "build.zig builds a shared library" \
-    "$(grep -q "addSharedLibrary" "$BASE/ffi/zig/build.zig" && echo 0 || echo 1)"
+    "$(grep -q 'linkage = .dynamic' "$BASE/ffi/zig/build.zig" && echo 0 || echo 1)"
 
 # ================================================================
 # E2E: Test coverage completeness

@@ -14,6 +14,7 @@
 
 module PropertyTests
 
+import System
 import Data.Vect
 import Data.List
 import Data.Bits
@@ -520,3 +521,6 @@ main = do
          ++ show totalCount ++ " passed, "
          ++ show totalFailed ++ " failed")
   putStrLn "==========================================="
+
+  -- Gate: nonzero exit on any failure, so CI actually enforces this suite
+  when (totalFailed > 0) exitFailure
