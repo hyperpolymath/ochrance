@@ -41,7 +41,7 @@ impact = "medium"
 discovered = "2026-06-05"
 
 [[debt.could]]
-component = ".machine_readable/6a2/ (estate-wide)"
+component = ".machine_readable/descriptiles/ (estate-wide)"
 issue = "phase vocabulary is not pinned by an enforced standard (svalinn 'crg-c-testing' vs ochrance 'implementation') — possible standards↔rsr-template divergence (Flag A); confirm against the canonical standards spec."
 effort = "medium"
 impact = "medium"

@@ -15,7 +15,7 @@ suites = "A2ML parser, property, integration, and tests/e2e_test.sh"
 
 [incident-response]
 steps = [
-  "Check .machine_readable/6a2/STATE.a2ml for current status, blockers, and next actions",
+  "Check .machine_readable/descriptiles/STATE.a2ml for current status, blockers, and next actions",
   "Review recent commits and CI results on main",
   "Re-run the proof build (idris2 --build ochrance.ipkg) and the affected suite",
 ]

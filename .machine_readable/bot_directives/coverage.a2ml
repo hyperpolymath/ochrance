@@ -26,6 +26,6 @@ notes = "Parser totality + Merkle combiner generalization + manifest round-trip 
 date = "2026-06-05"
 ring = 1
 fixes = 7
-notes = "Refreshed 6a2 (all six) + ANCHOR from the March .scm stubs; recorded D1/D2/D3, proven surface, honest bounds, runbooks; reconciled all open branches into one main."
+notes = "Refreshed descriptiles (all six) + ANCHOR from the March .scm stubs; recorded D1/D2/D3, proven surface, honest bounds, runbooks; reconciled all open branches into one main."
 
 # Skipped MUSTs / cherry-picking audit: none recorded this session.
