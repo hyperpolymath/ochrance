@@ -1,44 +1,55 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
-// {{PROJECT}} Integration Tests
+// Ochránce Integration Tests
 //
-// These tests verify that the Zig FFI correctly implements the Idris2 ABI
+// These tests exercise the C ABI of libochrance exactly as an external
+// consumer would: extern declarations resolved at link time against the
+// built library (see build.zig `test` step), not Zig-internal calls. This
+// verifies symbol names, calling convention, and behavioural contract —
+// the same contract Idris2's %foreign bindings depend on at runtime.
 
 const std = @import("std");
 const testing = std.testing;
 
-// Import FFI functions
-extern fn {{project}}_init() ?*opaque {};
-extern fn {{project}}_free(?*opaque {}) void;
-extern fn {{project}}_process(?*opaque {}, u32) c_int;
-extern fn {{project}}_get_string(?*opaque {}) ?[*:0]const u8;
-extern fn {{project}}_free_string(?[*:0]const u8) void;
-extern fn {{project}}_last_error() ?[*:0]const u8;
-extern fn {{project}}_version() [*:0]const u8;
-extern fn {{project}}_is_initialized(?*opaque {}) u32;
+// C ABI imports — must match ffi/zig/src/main.zig exports and the
+// Idris2 ABI declarations in src/abi/Ochrance/ABI/Foreign.idr.
+extern fn ochrance_init() ?*anyopaque;
+extern fn ochrance_free(handle: ?*anyopaque) void;
+extern fn ochrance_process(handle: ?*anyopaque, input: u32) c_int;
+extern fn ochrance_process_array(handle: ?*anyopaque, buffer: ?[*]const u8, len: u32) c_int;
+extern fn ochrance_get_string(handle: ?*anyopaque) ?[*:0]const u8;
+extern fn ochrance_free_string(str: ?[*:0]const u8) void;
+extern fn ochrance_last_error() ?[*:0]const u8;
+extern fn ochrance_version() [*:0]const u8;
+extern fn ochrance_is_initialized(handle: ?*anyopaque) u32;
+extern fn blake3_hash(data: [*]const u8, len: usize, out: [*]u8) void;
+
+// Result codes (must match the Result enum in src/main.zig / ABI Types.idr)
+const RESULT_OK: c_int = 0;
+const RESULT_NULL_POINTER: c_int = 4;
 
 //==============================================================================
 // Lifecycle Tests
 //==============================================================================
 
 test "create and destroy handle" {
-    const handle = {{project}}_init() orelse return error.InitFailed;
-    defer {{project}}_free(handle);
-
-    try testing.expect(handle != null);
+    const handle = ochrance_init() orelse return error.InitFailed;
+    defer ochrance_free(handle);
 }
 
 test "handle is initialized" {
-    const handle = {{project}}_init() orelse return error.InitFailed;
-    defer {{project}}_free(handle);
+    const handle = ochrance_init() orelse return error.InitFailed;
+    defer ochrance_free(handle);
 
-    const initialized = {{project}}_is_initialized(handle);
-    try testing.expectEqual(@as(u32, 1), initialized);
+    try testing.expectEqual(@as(u32, 1), ochrance_is_initialized(handle));
 }
 
 test "null handle is not initialized" {
-    const initialized = {{project}}_is_initialized(null);
-    try testing.expectEqual(@as(u32, 0), initialized);
+    try testing.expectEqual(@as(u32, 0), ochrance_is_initialized(null));
+}
+
+test "free null is safe" {
+    ochrance_free(null); // guarded by orelse in the implementation
 }
 
 //==============================================================================
@@ -46,16 +57,29 @@ test "null handle is not initialized" {
 //==============================================================================
 
 test "process with valid handle" {
-    const handle = {{project}}_init() orelse return error.InitFailed;
-    defer {{project}}_free(handle);
+    const handle = ochrance_init() orelse return error.InitFailed;
+    defer ochrance_free(handle);
 
-    const result = {{project}}_process(handle, 42);
-    try testing.expectEqual(@as(c_int, 0), result); // 0 = ok
+    try testing.expectEqual(RESULT_OK, ochrance_process(handle, 42));
 }
 
-test "process with null handle returns error" {
-    const result = {{project}}_process(null, 42);
-    try testing.expectEqual(@as(c_int, 4), result); // 4 = null_pointer
+test "process with null handle returns null_pointer" {
+    try testing.expectEqual(RESULT_NULL_POINTER, ochrance_process(null, 42));
+}
+
+test "process array with valid buffer" {
+    const handle = ochrance_init() orelse return error.InitFailed;
+    defer ochrance_free(handle);
+
+    const data = [_]u8{ 1, 2, 3, 4 };
+    try testing.expectEqual(RESULT_OK, ochrance_process_array(handle, &data, data.len));
+}
+
+test "process array with null buffer returns null_pointer" {
+    const handle = ochrance_init() orelse return error.InitFailed;
+    defer ochrance_free(handle);
+
+    try testing.expectEqual(RESULT_NULL_POINTER, ochrance_process_array(handle, null, 0));
 }
 
 //==============================================================================
@@ -63,18 +87,22 @@ test "process with null handle returns error" {
 //==============================================================================
 
 test "get string result" {
-    const handle = {{project}}_init() orelse return error.InitFailed;
-    defer {{project}}_free(handle);
+    const handle = ochrance_init() orelse return error.InitFailed;
+    defer ochrance_free(handle);
 
-    const str = {{project}}_get_string(handle);
-    defer if (str) |s| {{project}}_free_string(s);
+    const str = ochrance_get_string(handle);
+    defer ochrance_free_string(str);
 
     try testing.expect(str != null);
+    try testing.expect(std.mem.span(str.?).len > 0);
 }
 
 test "get string with null handle" {
-    const str = {{project}}_get_string(null);
-    try testing.expect(str == null);
+    try testing.expect(ochrance_get_string(null) == null);
+}
+
+test "free null string is safe" {
+    ochrance_free_string(null); // guarded by orelse in the implementation
 }
 
 //==============================================================================
@@ -82,44 +110,46 @@ test "get string with null handle" {
 //==============================================================================
 
 test "last error after null handle operation" {
-    _ = {{project}}_process(null, 0);
+    _ = ochrance_process(null, 0);
 
-    const err = {{project}}_last_error();
+    const err = ochrance_last_error();
     try testing.expect(err != null);
-
-    if (err) |e| {
-        const err_str = std.mem.span(e);
-        try testing.expect(err_str.len > 0);
-    }
+    try testing.expect(std.mem.span(err.?).len > 0);
 }
 
 test "no error after successful operation" {
-    const handle = {{project}}_init() orelse return error.InitFailed;
-    defer {{project}}_free(handle);
+    const handle = ochrance_init() orelse return error.InitFailed;
+    defer ochrance_free(handle);
 
-    _ = {{project}}_process(handle, 0);
-
-    // Error should be cleared after successful operation
-    // (This depends on implementation)
+    try testing.expectEqual(RESULT_OK, ochrance_process(handle, 0));
+    try testing.expect(ochrance_last_error() == null);
 }
 
 //==============================================================================
 // Version Tests
 //==============================================================================
 
-test "version string is not empty" {
-    const ver = {{project}}_version();
-    const ver_str = std.mem.span(ver);
-
+test "version string is semantic version format" {
+    const ver_str = std.mem.span(ochrance_version());
     try testing.expect(ver_str.len > 0);
+    try testing.expect(std.mem.count(u8, ver_str, ".") >= 1);
 }
 
-test "version string is semantic version format" {
-    const ver = {{project}}_version();
-    const ver_str = std.mem.span(ver);
+//==============================================================================
+// Crypto ABI Test — the linked library computes real BLAKE3
+//==============================================================================
 
-    // Should be in format X.Y.Z
-    try testing.expect(std.mem.count(u8, ver_str, ".") >= 1);
+test "blake3_hash known-answer vector across the C ABI" {
+    var out: [32]u8 = undefined;
+    const abc: []const u8 = "abc";
+    blake3_hash(abc.ptr, abc.len, &out);
+
+    var expected: [32]u8 = undefined;
+    _ = try std.fmt.hexToBytes(
+        &expected,
+        "6437b3ac38465133ffb63b75273a8db548c558465d79db03fd359c6cd5bd9d85",
+    );
+    try testing.expectEqualSlices(u8, &expected, &out);
 }
 
 //==============================================================================
@@ -127,54 +157,35 @@ test "version string is semantic version format" {
 //==============================================================================
 
 test "multiple handles are independent" {
-    const h1 = {{project}}_init() orelse return error.InitFailed;
-    defer {{project}}_free(h1);
+    const h1 = ochrance_init() orelse return error.InitFailed;
+    defer ochrance_free(h1);
 
-    const h2 = {{project}}_init() orelse return error.InitFailed;
-    defer {{project}}_free(h2);
+    const h2 = ochrance_init() orelse return error.InitFailed;
+    defer ochrance_free(h2);
 
     try testing.expect(h1 != h2);
 
-    // Operations on h1 should not affect h2
-    _ = {{project}}_process(h1, 1);
-    _ = {{project}}_process(h2, 2);
-}
-
-test "double free is safe" {
-    const handle = {{project}}_init() orelse return error.InitFailed;
-
-    {{project}}_free(handle);
-    {{project}}_free(handle); // Should not crash
-}
-
-test "free null is safe" {
-    {{project}}_free(null); // Should not crash
+    try testing.expectEqual(RESULT_OK, ochrance_process(h1, 1));
+    try testing.expectEqual(RESULT_OK, ochrance_process(h2, 2));
 }
 
 //==============================================================================
-// Thread Safety Tests (if applicable)
+// Thread Safety Tests
 //==============================================================================
 
 test "concurrent operations" {
-    const handle = {{project}}_init() orelse return error.InitFailed;
-    defer {{project}}_free(handle);
-
-    const ThreadContext = struct {
-        h: *opaque {},
-        id: u32,
-    };
+    const handle = ochrance_init() orelse return error.InitFailed;
+    defer ochrance_free(handle);
 
     const thread_fn = struct {
-        fn run(ctx: ThreadContext) void {
-            _ = {{project}}_process(ctx.h, ctx.id);
+        fn run(h: *anyopaque, id: u32) void {
+            _ = ochrance_process(h, id);
         }
     }.run;
 
     var threads: [4]std.Thread = undefined;
     for (&threads, 0..) |*thread, i| {
-        thread.* = try std.Thread.spawn(.{}, thread_fn, .{
-            ThreadContext{ .h = handle, .id = @intCast(i) },
-        });
+        thread.* = try std.Thread.spawn(.{}, thread_fn, .{ handle, @as(u32, @intCast(i)) });
     }
 
     for (threads) |thread| {

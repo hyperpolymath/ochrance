@@ -151,7 +151,7 @@ Target: Production-ready filesystem verification for OSTree deployments
 === Required
 
 * **Idris2** 0.8.0+ (dependent types, totality checking)
-* **Zig** 0.11+ (FFI implementation)
+* **Zig** 0.15+ (FFI implementation)
 * **BLAKE3** (cryptographic hashing)
 
 === Optional (Phase 2+)
