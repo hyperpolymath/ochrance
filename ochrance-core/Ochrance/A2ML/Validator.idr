@@ -5,13 +5,15 @@
 ||| Ochrance.A2ML.Validator - Semantic validation of parsed manifests
 |||
 ||| Checks that a parsed Manifest satisfies all semantic constraints:
-||| supported version, valid hash algorithms, valid base64, signature
-||| verification, and policy consistency.
+||| supported version, valid hash algorithms, well-formed digests,
+||| signature verification, and policy consistency (require_sig and
+||| max_age freshness).
 
 module Ochrance.A2ML.Validator
 
 import Data.Vect
 import Data.Maybe
+import System
 import Ochrance.A2ML.Types
 import Ochrance.Framework.Error
 import Ochrance.FFI.Crypto
@@ -51,13 +53,27 @@ isVersionSupported : String -> Bool
 isVersionSupported "0.1.0" = True
 isVersionSupported _       = False
 
-||| Check if a hash value contains only valid hex characters
+||| Length, in hex characters, of a supported digest. All supported hash
+||| algorithms (BLAKE3, SHA-256, SHA3-256) produce 32-byte digests,
+||| i.e. exactly 64 hex characters.
+public export
+digestHexLength : Nat
+digestHexLength = 64
+
+||| Check that a string consists of exactly `n` hex digits ([0-9a-fA-F]).
+||| Rejects the empty string whenever `n` is non-zero.
+public export
+isValidHexStringN : (n : Nat) -> String -> Bool
+isValidHexStringN n s =
+  let cs = unpack s
+  in length cs == n && all isHexDigit cs
+
+||| Check if a hash value is a well-formed digest: exactly 64 hex characters.
+||| (An earlier version accepted '.' and imposed no length bound, so empty,
+||| truncated or padded "digests" passed validation.)
 public export
 isValidHexString : String -> Bool
-isValidHexString s = all isHexChar (unpack s)
-  where
-    isHexChar : Char -> Bool
-    isHexChar c = isHexDigit c || c == '.'
+isValidHexString s = isValidHexStringN digestHexLength s
 
 ||| Validate a single reference's hash
 public export
@@ -67,8 +83,170 @@ validateRef ref =
      then Left (InvalidHashValue ref.hash.value)
      else Right ()
 
-||| Validate a complete manifest (pure version, no signature verification).
-||| Use validateManifestIO for full validation including signatures.
+--------------------------------------------------------------------------------
+-- Timestamp Parsing (minimal total ISO-8601 subset)
+--------------------------------------------------------------------------------
+
+||| Decimal value of a digit character. Public so proofs and tests can
+||| reduce `parseTimestamp` definitionally.
+public export
+digitVal : Char -> Maybe Integer
+digitVal c =
+  if isDigit c
+     then Just (cast (ord c - ord '0'))
+     else Nothing
+
+||| Read a fixed run of decimal digits as a non-negative Integer.
+public export
+readDigits : Integer -> List Char -> Maybe Integer
+readDigits acc []        = Just acc
+readDigits acc (c :: cs) = case digitVal c of
+  Nothing => Nothing
+  Just d  => readDigits (acc * 10 + d) cs
+
+||| Gregorian leap-year test.
+public export
+isLeapYear : Integer -> Bool
+isLeapYear y = (y `mod` 4 == 0 && y `mod` 100 /= 0) || y `mod` 400 == 0
+
+||| Days in a month (1-12). Defensively 31 outside that range; callers
+||| range-check the month first.
+public export
+daysInMonth : (leap : Bool) -> (month : Integer) -> Integer
+daysInMonth leap 2  = if leap then 29 else 28
+daysInMonth _    4  = 30
+daysInMonth _    6  = 30
+daysInMonth _    9  = 30
+daysInMonth _    11 = 30
+daysInMonth _    _  = 31
+
+||| Days before the first day of the given month (1-12) within one year.
+public export
+daysBeforeMonth : (leap : Bool) -> (month : Integer) -> Integer
+daysBeforeMonth leap m =
+  let base : Integer = case m of
+        1 => 0;   2 => 31;  3 => 59;   4 => 90
+        5 => 120; 6 => 151; 7 => 181;  8 => 212
+        9 => 243; 10 => 273; 11 => 304; _ => 334
+  in if leap && m > 2 then base + 1 else base
+
+||| Leap years strictly before the given year (counting from year 1;
+||| positive years only - truncating and floor division agree there).
+public export
+leapsBefore : Integer -> Integer
+leapsBefore y =
+  let p = y - 1
+  in p `div` 4 - p `div` 100 + p `div` 400
+
+||| Days from 1970-01-01 to January 1st of the given year (year >= 1970).
+public export
+daysSinceEpochToYear : Integer -> Integer
+daysSinceEpochToYear y = 365 * (y - 1970) + (leapsBefore y - leapsBefore 1970)
+
+||| Parse a manifest timestamp - the minimal total ISO-8601 subset
+||| YYYY-MM-DDTHH:MM:SSZ (UTC only, the format A2ML manifests carry) -
+||| into seconds since the Unix epoch. Rejects out-of-range date/time
+||| fields and years before 1970.
+public export
+parseTimestamp : String -> Maybe Integer
+parseTimestamp s = case unpack s of
+  [y1,y2,y3,y4,'-',mo1,mo2,'-',d1,d2,'T',h1,h2,':',mi1,mi2,':',se1,se2,'Z'] => do
+    year   <- readDigits 0 [y1,y2,y3,y4]
+    month  <- readDigits 0 [mo1,mo2]
+    day    <- readDigits 0 [d1,d2]
+    hour   <- readDigits 0 [h1,h2]
+    minute <- readDigits 0 [mi1,mi2]
+    second <- readDigits 0 [se1,se2]
+    let leap = isLeapYear year
+    if year >= 1970
+       && month >= 1 && month <= 12
+       && day >= 1 && day <= daysInMonth leap month
+       && hour <= 23 && minute <= 59 && second <= 59
+       then let days = daysSinceEpochToYear year
+                     + daysBeforeMonth leap month
+                     + (day - 1)
+            in Just (((days * 24 + hour) * 60 + minute) * 60 + second)
+       else Nothing
+  _ => Nothing
+
+--------------------------------------------------------------------------------
+-- Policy Validation
+--------------------------------------------------------------------------------
+
+||| require_sig: a policy that requires a signature is violated by a
+||| manifest that carries no attestation.
+public export
+checkRequireSig : Policy -> Maybe Attestation -> Either ValidationError ()
+checkRequireSig p Nothing =
+  if p.requireSig
+     then Left (PolicyViolation "Policy requires signature but none present")
+     else Right ()
+checkRequireSig _ (Just _) = Right ()
+
+||| max_age: the constraint is only meaningful if the manifest carries a
+||| timestamp in the supported ISO-8601 subset. The freshness comparison
+||| itself needs a clock - see validatePolicyAt.
+public export
+checkMaxAgeShape : Policy -> Maybe String -> Either ValidationError ()
+checkMaxAgeShape p ts = case p.maxAge of
+  Nothing => Right ()
+  Just _  => case ts of
+    Nothing =>
+      Left (PolicyViolation "Policy specifies max_age but manifest has no timestamp")
+    Just t  => case parseTimestamp t of
+      Nothing =>
+        Left (PolicyViolation ("Policy specifies max_age but timestamp is not ISO-8601 YYYY-MM-DDTHH:MM:SSZ: " ++ t))
+      Just _  => Right ()
+
+||| Freshness: the manifest age (now - issued, both in seconds since the
+||| Unix epoch) must not exceed max_age seconds.
+public export
+checkFreshness : (now : Integer) -> (issued : Integer) -> (maxAge : Nat) ->
+                 Either ValidationError ()
+checkFreshness now issued maxAge =
+  if now - issued > cast maxAge
+     then Left (PolicyViolation ("Manifest age " ++ show (now - issued)
+                  ++ "s exceeds policy max_age " ++ show maxAge ++ "s"))
+     else Right ()
+
+||| Validate the clock-free policy constraints of a manifest: require_sig
+||| demands an attestation, and max_age demands a parseable timestamp.
+||| Enforced by validateManifest (and hence validateManifestIO).
+public export
+validatePolicy : Manifest -> Either ValidationError ()
+validatePolicy m = case m.policy of
+  Nothing => Right ()
+  Just p  => do
+    checkRequireSig p m.attestation
+    checkMaxAgeShape p m.manifestData.timestamp
+
+||| Validate all policy constraints of a manifest at a given time (seconds
+||| since the Unix epoch): the clock-free constraints plus max_age
+||| freshness. Pure and total - the caller supplies `now`;
+||| validateManifestIO fetches it from the system clock.
+public export
+validatePolicyAt : (now : Integer) -> Manifest -> Either ValidationError ()
+validatePolicyAt now m = do
+  validatePolicy m
+  case m.policy of
+    Nothing => Right ()
+    Just p  => case (p.maxAge, m.manifestData.timestamp) of
+      (Just maxAge, Just ts) => case parseTimestamp ts of
+        -- Unreachable after validatePolicy succeeds, but kept total
+        -- and fail-closed rather than assuming reachability.
+        Nothing =>
+          Left (PolicyViolation ("Policy specifies max_age but timestamp is not ISO-8601 YYYY-MM-DDTHH:MM:SSZ: " ++ ts))
+        Just issued => checkFreshness now issued maxAge
+      _ => Right ()
+
+--------------------------------------------------------------------------------
+-- Manifest Validation
+--------------------------------------------------------------------------------
+
+||| Validate a complete manifest (pure version: no signature verification,
+||| no clock). Enforces the structural constraints and the clock-free
+||| policy constraints (require_sig, max_age shape). Use validateManifestIO
+||| for full validation including signatures and max_age freshness.
 public export
 validateManifest : Manifest -> Either ValidationError ValidManifest
 validateManifest m = do
@@ -82,8 +260,9 @@ validateManifest m = do
      else pure ()
   -- Validate all refs
   traverse_ validateRef m.refs
-  -- Signature verification skipped in pure version
-  -- Wrap in ValidManifest
+  -- Enforce clock-free policy constraints (require_sig, max_age shape)
+  validatePolicy m
+  -- Signature verification and freshness are IO concerns - see validateManifestIO
   Right (MkValidManifest m)
 
 --------------------------------------------------------------------------------
@@ -114,54 +293,36 @@ verifySignatureIO sigHex pubkeyHex hash = do
     Right Nothing   => pure False  -- Hex parsing failure => reject
     Right (Just ok) => pure ok
 
-||| Validate a complete manifest with signature verification (IO version).
-||| This performs full validation including cryptographic signature checks.
+||| Validate a complete manifest with signature verification and policy
+||| freshness (IO version). This performs full validation including
+||| cryptographic signature checks and max_age enforcement against the
+||| system clock.
 export
 validateManifestIO : HasIO io => Manifest -> io (Either ValidationError ValidManifest)
 validateManifestIO m = do
-  -- Run pure validation first
+  -- Run pure validation first (structure + clock-free policy constraints)
   case validateManifest m of
     Left err => pure (Left err)
     Right _ => do
-      -- If attestation present, verify signature
-      case m.attestation of
-        Nothing => pure (Right (MkValidManifest m))
-        Just att => do
-          -- Compute manifest hash for signature verification
-          let manifestBytes = serializeForSigning m
-          hashResult <- blake3 manifestBytes
+      -- Enforce max_age freshness against the system clock
+      now <- time
+      case validatePolicyAt now m of
+        Left err => pure (Left err)
+        Right () =>
+          -- If attestation present, verify signature
+          case m.attestation of
+            Nothing => pure (Right (MkValidManifest m))
+            Just att => do
+              -- Compute manifest hash for signature verification
+              let manifestBytes = serializeForSigning m
+              hashResult <- blake3 manifestBytes
 
-          case hashResult of
-            Left _ => pure (Left SignatureVerificationFailed)
-            Right manifestHash => do
-              -- Verify signature (Ed25519 via FFI)
-              signatureValid <- verifySignatureIO att.signature att.pubkey manifestHash
+              case hashResult of
+                Left _ => pure (Left SignatureVerificationFailed)
+                Right manifestHash => do
+                  -- Verify signature (Ed25519 via FFI)
+                  signatureValid <- verifySignatureIO att.signature att.pubkey manifestHash
 
-              if signatureValid
-                 then pure (Right (MkValidManifest m))
-                 else pure (Left SignatureVerificationFailed)
-
---------------------------------------------------------------------------------
--- Policy Validation
---------------------------------------------------------------------------------
-
-||| Validate that a manifest satisfies policy constraints
-export
-validatePolicy : Manifest -> Either ValidationError ()
-validatePolicy m =
-  case m.policy of
-    Nothing => Right ()
-    Just p => do
-      -- Check require_sig policy
-      if p.requireSig && isNothing m.attestation
-         then Left (PolicyViolation "Policy requires signature but none present")
-         else Right ()
-      -- Check max_age policy (requires timestamp)
-      case (p.maxAge, m.manifestData.timestamp) of
-        (Just _, Nothing) =>
-          Left (PolicyViolation "Policy specifies max_age but manifest has no timestamp")
-        _ => Right ()
-  where
-    isNothing : Maybe a -> Bool
-    isNothing Nothing = True
-    isNothing (Just _) = False
+                  if signatureValid
+                     then pure (Right (MkValidManifest m))
+                     else pure (Left SignatureVerificationFailed)

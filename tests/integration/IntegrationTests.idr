@@ -10,6 +10,7 @@
 module IntegrationTests
 
 import System
+import Data.List
 import Data.Vect
 import Ochrance.A2ML.Types
 import Ochrance.A2ML.Lexer
@@ -47,13 +48,18 @@ testCase name test = do
     Fail _ => exitFailure
     Pass   => pure ()
 
+||| Pad a hex tag to a full 64-char digest (the validator enforces the
+||| exact 32-byte digest length, so toy hashes must be padded).
+hex64 : String -> String
+hex64 s = pack (Data.List.take 64 (unpack (s ++ "0000000000000000000000000000000000000000000000000000000000000000")))
+
 ||| Create a test filesystem state
 createTestFS : Nat -> FSState
 createTestFS numBlocks =
   MkFSState
     numBlocks
     (\idx => if idx < numBlocks
-               then Just (MkHash BLAKE3 ("deadbeef" ++ show idx))
+               then Just (MkHash BLAKE3 (hex64 ("deadbeef" ++ show idx)))
                else Nothing)
     (MkManifestData "0.1.0" "test-filesystem" Nothing)
 
@@ -101,7 +107,7 @@ test_DetectHashMismatch = do
   let fs = createTestFS 2
 
   -- Create manifest with different hash for block 0
-  let wrongHash = MkHash BLAKE3 "baadf00d"
+  let wrongHash = MkHash BLAKE3 (hex64 "baadf00d")
   let wrongRef = MkRef "block_0" wrongHash
   let manifest = MkManifest
         (MkManifestData "0.1.0" "test-filesystem" Nothing)
@@ -183,8 +189,8 @@ test_LinearVerifyAndRepair = do
   -- Create manifest with correct hashes
   let manifest = MkManifest
         (MkManifestData "0.1.0" "test-filesystem" Nothing)
-        [ MkRef "block_0" (MkHash BLAKE3 "c0ffee00")
-        , MkRef "block_1" (MkHash BLAKE3 "c0ffee01")
+        [ MkRef "block_0" (MkHash BLAKE3 (hex64 "c0ffee00"))
+        , MkRef "block_1" (MkHash BLAKE3 (hex64 "c0ffee01"))
         ]
         Nothing
         Nothing
