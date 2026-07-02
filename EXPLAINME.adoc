@@ -29,7 +29,7 @@ Three components orchestrate this: A2ML parser/validator (parses filesystem mani
 
 **How verified**: The Merkle tree is defined as a size-indexed binary tree: `MerkleTree : (size : Nat) → Type`. At compile time, Idris2 verifies that all leaf nodes are at depth `log2(size)`. The tree operations (leaf insertion, hash computation, proof generation) take dependent proofs that structure is maintained. README (§Architecture) claims "Verified Merkle trees — Size-indexed binary trees with compile-time structure proofs." This is proven by the type signature itself: if you try to construct a tree of size 8 with only 7 leaves, the type checker rejects it because the dependent type `MerkleTree 8` requires exactly 8 leaves.
 
-**Caveat**: The size-indexed *structure* proofs are independent of hash strength. Real hashing now exists — the Zig FFI implements BLAKE3/SHA-256/SHA3-256 (`ffi/zig/src/main.zig`, with known-answer-vector tests) and the IO Merkle path calls `hashPairBlake3` — but a pure XOR combiner (`hashPairStub`) remains for totality/offline testing, and `libochrance.so` must be built and linked for the cryptographic path to be live. Until the stub paths are removed and the FFI is wired into the verification flow, the structure proofs hold but cryptographic integrity is not yet claimed.
+**Caveat**: The size-indexed *structure* proofs are independent of hash strength. The cryptographic path is live: the Zig FFI implements BLAKE3/SHA-256/SHA3-256 (`ffi/zig/src/main.zig`, known-answer-vector tested), `build.zig` emits `libochrance.so`, and the IO Merkle path calls `hashPairBlake3` across `%foreign` — confirmed end to end by `tests/ffi/CryptoFFITest.idr` (the production root is the BLAKE3 fold, not the XOR spec root) and CI-gated in the `Idris2` and `Zig FFI` workflows. The pure XOR combiner (`xorCombiner`) is the totality-friendly *spec instance* of the combiner-generic theorems, not a fallback. The irreducible crypto assumption is `CollisionResistant`, isolated in `Filesystem.MerkleAssumption`.
 
 == Dogfooded Across The Account
 
@@ -60,12 +60,12 @@ Also integrates with ECHIDNA for neural proof synthesis — FFI calls to libechi
 
 == Testing Critical Paths
 
-* **Lexer totality**: `idris2 --check ochrance-core/A2ML/Lexer.idr` — Idris2 type checker verifies structurally recursive, no partial functions
-* **Parser totality**: `idris2 --check ochrance-core/A2ML/Parser.idr` — sized types ensure termination proof
-* **Validator**: `tests/validator_test.idr` — roundtrip A2ML → AST → A2ML preserves structure
-* **Merkle tree**: `tests/merkle_test.idr` — size-indexed tree construction and hash verification
-* **Repair linearity**: `tests/repair_test.idr` — linear type system prevents use-after-repair bugs (compile-time error if violated)
-* **ECHIDNA FFI**: `tests/echidna_ffi_test.idr` — call libechidna.so via Zig FFI, verify proof synthesis works
+* **Lexer/Parser totality**: `idris2 --build ochrance.ipkg` (opts `--total`) — every core module, including the lexer's structural recursion and the parser's sized-type termination, type-checks under the totality checker; CI-gated by the `Idris2` workflow
+* **Parser/roundtrip**: `tests/A2ML/ParserTests.idr` — lex/parse/serialize roundtrip and error handling (fail-capable, CI-gated)
+* **Properties**: `tests/property/PropertyTests.idr` — 47 property checks across hex roundtrip, Merkle, repair idempotence, and validation (incl. policy rejection cases)
+* **Integration**: `tests/integration/IntegrationTests.idr` — manifest generation → validation → verification → repair scenarios
+* **Crypto FFI runtime**: `tests/ffi/CryptoFFITest.idr` (via `tests/ffi/run_ffi_test.sh`) — real BLAKE3/SHA-256/SHA3-256 across `%foreign` into `libochrance.so`; proves the production Merkle root ≠ XOR spec root
+* **ECHIDNA FFI**: not yet testable — `Ochrance.FFI.Echidna` is a design stub (`Left "FFI not yet implemented"`); see ROADMAP Phase 2
 
 == Known Limitations & TODOs
 
