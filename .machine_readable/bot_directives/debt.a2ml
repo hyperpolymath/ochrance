@@ -8,6 +8,7 @@
 # Reference: ADR-002 in standards/agentic-a2ml/docs/
 
 [metadata]
+project = "ochrance"
 version = "1.1.0"
 last-updated = "2026-06-05"
 

@@ -7,6 +7,8 @@
 # Run with: adjust check
 # Fix with: adjust fix (applies deterministic patches; advisory otherwise)
 
+project = "ochrance"
+
 @abstract:
 Drift tolerances and corrective actions for rsr-template-repo. Unlike
 MUST (hard gate), ADJUST tracks cumulative drift against tolerance bands
