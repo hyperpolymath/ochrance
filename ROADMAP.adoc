@@ -8,9 +8,17 @@ v0.1.0, 2026-02-07
 
 == Current Status
 
-**Phase 1: Ochránce Core** (54% complete - In Progress)
+**Phase 1: Ochránce Core** — 10/11 components complete (updated 2026-07-02)
 
-The A2ML parsing pipeline is fully functional with total lexer and covering parser. Type-safe framework with q/p/z error taxonomy is complete. Current focus: completing validator, serializer, and Merkle tree implementation.
+The proof program's Stages 1–3 are machine-checked and CI-enforced: the
+`Idris2` workflow builds every core module under `--total` on each PR, and
+the Idris→Zig FFI runtime test proves the production Merkle path computes
+real BLAKE3 across the `%foreign` boundary. The validator enforces policy
+(require_sig, max_age freshness) with soundness theorems. Ledger of record:
+`docs/PROOFS.adoc`. Remaining engineering: filling in the placeholder
+integration scenarios, canonical signing serialization, and the Stage 4
+proofs (Merkle completeness, progressive monotonicity, VerifiedSubsystem
+law).
 
 == Development Phases
 
@@ -18,34 +26,33 @@ The A2ML parsing pipeline is fully functional with total lexer and covering pars
 
 Target: Complete core verification framework with full A2ML support
 
-**Completion: 54%**
+**Completion: 10/11 components**
 
 Components:
 
 * [x] A2ML Lexer (total, tested)
 * [x] A2ML Parser (total, tested)
-* [ ] A2ML Validator (comprehensive signature verification)
-* [ ] A2ML Serializer (roundtrip: Manifest ↔ String)
+* [x] A2ML Validator (structural + policy enforcement proven sound; Ed25519 signature verification via FFI; residual: canonical signing serialization, positive-path signature KAT, trust-root story)
+* [x] A2ML Serializer (roundtrip proven for the reference token codec; production pipeline runtime-checked — the String-primitive wall, see PROOFS.adoc)
 * [x] Framework Interface (VerifiedSubsystem)
 * [x] Proof Witnesses (Lax/Checked/Attested modes)
 * [x] Error Taxonomy (q/p/z classification)
-* [ ] Merkle Tree Implementation (size-indexed; BLAKE3 FFI now implemented in Zig — build/link wiring still pending)
-* [ ] Filesystem Verification (VerifiedSubsystem instance)
-* [ ] Linear Type Repair (consume-old-state semantics)
-* [ ] Integration Tests (50+ scenarios)
+* [x] Merkle Tree Implementation (size-indexed; real BLAKE3 via libochrance.so, CI-gated end to end; residual assumption: CollisionResistant, isolated)
+* [x] Filesystem Verification (verify soundness proven — Stages 2.2/2.4; residual: proof-token constructor visibility)
+* [x] Linear Type Repair (repair correctness proven — Stages 3.1/3.2; impl models hashes only, no block I/O; full linearity deferred, see PROOFS.adoc)
+* [ ] Integration Tests (10 real scenarios green + fail-capable and CI-gated; 45 remaining placeholders to fill)
 
 **Critical Next Actions:**
 
-1. Complete A2ML Validator (signature verification via FFI)
-2. Implement A2ML Serializer (roundtrip verification)
-3. Wire the implemented Zig BLAKE3 FFI into Merkle and remove the XOR stub combiner
-4. Implement Filesystem.Verify module
-5. Implement Filesystem.Repair with linear types (Quantity 1)
+1. Canonical signing serialization (delimited, all-fields-bound) + positive-path Ed25519 known-answer test through validateManifestIO
+2. Stage 4 proofs: Merkle completeness (4.1), remaining SatisfiesMinimum monotonicity cases (4.3), VerifiedSubsystem law stated + proven for FSState
+3. Fill in the 45 placeholder integration scenarios
+4. Make real BLAKE3 reachable from a root-verify entry point (IO path via the proven IO↔pure bridge; VerifyRoot currently requires a pure Combiner)
+5. Require the Idris2 / Zig FFI checks in the repo ruleset (currently no required status checks — auto-merge lands before CI finishes)
 
 **Blockers:**
 
-* Idris2 0.8.0+ compiler required
-* `libochrance.so` (Zig crypto FFI) must be built and linked into the Idris2 verification flow; the primitives themselves (BLAKE3/SHA-256/SHA3-256/Ed25519) are now implemented and tested
+* None for the components above. Named boundaries: CollisionResistant hypothesis (isolated); ABI-layer blake3Hash placeholder + ECHIDNA FFI stub (issue #39, Phase 2 scope); attestation trust-root / key management (design decision needed)
 
 === Phase 2: ECHIDNA Integration (v0.2.0) - **Planned**
 

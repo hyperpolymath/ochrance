@@ -218,7 +218,9 @@ signature rejection.
 ### Idris2 Integration Tests
 
 ```bash
-idris2 --build tests/integration.ipkg
+idris2 --install ochrance.ipkg
+idris2 --build tests/integration/tests.ipkg
+./tests/integration/build/exec/integration-tests
 ```
 
 ## Contributing

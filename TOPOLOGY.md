@@ -3,7 +3,7 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 Copyright (c) Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
 -->
 <!-- TOPOLOGY.md — Project architecture map and completion dashboard -->
-<!-- Last updated: 2026-06-17 -->
+<!-- Last updated: 2026-07-02 -->
 
 # Ochránce — Project Topology
 
@@ -65,25 +65,42 @@ COMPONENT                            STATUS         NOTES (proof / verification 
 ───────────────────────────────────  ──────────────  ────────────────────────────────────────────
 CORE VERIFICATION (IDRIS2)
   Merkle soundness + round-trip       ███████░░░ 70%  merkleCorrect(With) + buildGetLeaf proven
-  Merkle completeness + binding       ░░░░░░░░░░  0%  converse + CollisionResistant (Stage 1.4/4)
+  Merkle completeness + binding       █████░░░░░ 50%  binding DONE (merkleBinding; CR isolated in
+                                                      MerkleAssumption); completeness converse open (4.1)
   A2ML parser + reference round-trip  ███████░░░ 70%  total; ref-codec proven; prod pipeline runtime-only
-  Verify soundness                    ░░░░░░░░░░  0%  verify success ⇏ a proof yet (Stage 2)
-  Linear-type Repair                  ██░░░░░░░░ 20%  IMPL IS A STUB (no block I/O); unproven (Stage 3)
-  VerifiedSubsystem law               █████░░░░░ 50%  interface + FSState instance; law unproven (Stage 3)
-  Progressive assurance               ███████░░░ 70%  attestedSatisfiesLax proven; monotonicity (Stage 4)
+  Verify soundness                    ████████░░ 80%  Stages 2.1–2.4 proven (verifyRefsSound,
+                                                      merkleRootVerifyHashSound mod CR+DecodeInjective);
+                                                      residual: proof-token constructor visibility
+  Validator + policy enforcement      ████████░░ 80%  validateManifestSound (4-tuple incl. policy);
+                                                      require_sig/max_age proven enforced; residual:
+                                                      canonical signing serialization + positive KAT
+  Linear-type Repair                  ██████░░░░ 60%  Stages 3.1/3.2 proven (mod GoodRefs+hashRefl);
+                                                      impl hash-map-only, no block I/O; linearity deferred
+  VerifiedSubsystem law               █████░░░░░ 50%  interface + FSState instance; law not yet STATED
+                                                      in Interface.idr (repairThenVerify proven at
+                                                      pure-core level, not lifted)
+  Progressive assurance               ███████░░░ 70%  attestedSatisfiesLax proven; monotonicity (Stage 4.3)
 
 SYSTEM & EXTERNAL
-  Zig crypto (BLAKE3/SHA/Ed25519)     ███████░░░ 70%  implemented + known-answer-vector tested in Zig
-  Crypto linked into verify flow      ██░░░░░░░░ 20%  NOT linked; Idris-side stubs still live (#39)
+  Zig crypto (BLAKE3/SHA/Ed25519)     █████████░ 90%  implemented + KAT-tested; Zig 0.15.2; 24 tests
+                                                      (unit + linked C-ABI integration) CI-gated
+  Crypto linked into verify flow      ███████░░░ 70%  libochrance.so built+linked+CI-gated end to end
+                                                      (Idris2 workflow runs run_ffi_test.sh per PR);
+                                                      residual: root-verify entry needs pure Combiner
+                                                      (IO path open), ABI blake3Hash placeholder (#39)
   ECHIDNA integration                 █░░░░░░░░░ 10%  design types only; FFI entirely stubbed
 
 REPO INFRASTRUCTURE
   Justfile automation                 ██████████ 100% build / verify tasks
-  .machine_readable/                  ██████████ 100% STATE tracking active
-  Idris2 .ipkg / totality gate        ██████████ 100% 19 core modules; --total build green
+  .machine_readable/                  ██████████ 100% STATE tracking active; descriptiles (post-6a2)
+  Idris2 .ipkg / totality gate        ██████████ 100% 29 core modules; --total build green
+  CI proof gate (Idris2 workflow)     ██████████ 100% every PR: full --total build + 3 fail-capable
+                                                      suites + Idris→Zig FFI runtime test
 
 ────────────────────────────────────────────────────────────────────────────────────────────────
-OVERALL (proof axis):                 ████░░░░░░ ~40% Stage 1.1 done; 1.2–4 open. See docs/PROOFS.adoc.
+OVERALL (proof axis):                 ███████░░░ ~70% Stages 1–3 done (mod named hypotheses);
+                                                      Stage 4 open: Merkle completeness, monotonicity
+                                                      cases, VerifiedSubsystem law. See docs/PROOFS.adoc.
 ```
 
 ## Key Dependencies

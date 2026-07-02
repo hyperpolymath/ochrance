@@ -22,11 +22,16 @@ v0.1.0, 2026-02-06
 
 Formal verification is **in progress** — see link:docs/PROOFS.adoc[`docs/PROOFS.adoc`]
 for the authoritative, dependency-sorted plan and the currently-proven surface
-(combiner-generic Merkle soundness, A2ML parser totality, manifest round-trip,
-progressive assurance). *Cryptographic integrity is not yet claimed*: the real
-BLAKE3 / SHA-256 / SHA3-256 / Ed25519 lives in the Zig FFI, but the Idris-side
-stub fallbacks must be removed and `libochrance.so` linked into the verification
-flow first (issue #39).
+(combiner-generic Merkle soundness + binding, verify/validator soundness with
+policy enforcement, repair correctness, A2ML parser totality, manifest
+round-trip, progressive assurance). The real BLAKE3 / SHA-256 / SHA3-256 /
+Ed25519 lives in the Zig FFI (`libochrance.so`), is wired into the Idris
+production path via `%foreign`, and is CI-verified end to end: the `Idris2`
+workflow builds every proof module under `--total` and runs the Idris→Zig
+runtime test on each PR. Named residual boundaries, not hidden: the
+`CollisionResistant` hypothesis (isolated in `Filesystem.MerkleAssumption`),
+the ABI-layer `blake3Hash` placeholder (`src/abi/`, issue #39), and the
+attestation trust-root / key-management story.
 
 == Architecture
 

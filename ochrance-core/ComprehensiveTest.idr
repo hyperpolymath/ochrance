@@ -69,5 +69,5 @@ main = do
   putStrLn "  • A2ML (Types/Lexer/Validator):  ✓"
   putStrLn "  • Framework (Interface/Proofs):  ✓"  
   putStrLn "  • Filesystem (Types/Merkle):     ✓"
-  putStrLn "  • FFI Crypto (stubbed):          ✓"
+  putStrLn "  • FFI Crypto (real, via libochrance): ✓"
   putStrLn ""

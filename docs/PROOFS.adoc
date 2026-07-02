@@ -4,6 +4,7 @@
 
 // SPDX-License-Identifier: CC-BY-SA-4.0
 // SPDX-FileCopyrightText: 2026 Jonathan D.A. Jewell (hyperpolymath)
+// Copyright (c) Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
 
 This is the authoritative, dependency-sorted plan for driving the formal
 verification of the Ochránce estate to completion. It is the durable source of
@@ -213,6 +214,32 @@ only `map id y` (functor-identity *law*, not definitional) — so invert by casi
 on the head outcome *and* the tail fold, keeping each step definitional; (ii) `with`
 abstracts only a hypothesis's WHNF, so case on `validateRef ref` (exposed there),
 not the nested `isValidHexString`.
++
+EXTENDED (2026-07-02): policy enforcement is now part of the proven surface.
+`validatePolicy` — previously dead code in the production path (a manifest with
+`require_sig = true` and no attestation *passed*) — is wired into
+`validateManifest`, and `validateManifestSound` is a 4-tuple: acceptance also
+forces `validatePolicy m = Right ()`. New theorems, all machine-checked,
+axiom-free: `requireSigNoAttestationRejected` (the gate is provably wired in);
+`staleManifestRejected` (end-to-end: `validatePolicyAt` rejects a manifest
+older than `max_age` — proved by rewriting the goal along the
+`parseTimestamp ts = Just issued` hypothesis, which unblocks both stuck case
+scrutinees at once; the `with`-abstraction route fails here because `with`
+cannot rewrite an already-fixed hypothesis); `checkFreshnessRejectsStale` /
+`checkFreshnessAcceptsFresh`; `hexAcceptSound` (strengthened check: exactly 64
+hex chars AND hex-only content — the old check accepted `'.'`, empty and
+any-length strings) + `hexWrongLengthRejected` + `hexEmptyRejected`; and
+known-answer proofs for the total ISO-8601-subset `parseTimestamp` (epoch = 0,
+modern date cross-checked, garbage and month-13 rejected). Freshness is
+clock-free in the pure layer (`validatePolicyAt` takes `now`;
+`validateManifestIO` fetches `System.time`) — IO↔pure-bridge style.
++
+CI-ENFORCED (2026-07-01): the entire ledger is now gated per PR — the `Idris2`
+workflow builds every core module under `--total` (a broken proof is a red
+check) and runs the Idris→Zig FFI runtime test (`tests/ffi/run_ffi_test.sh`),
+so the production-Merkle-root-is-real-BLAKE3 fact is re-verified on every
+change. The three Idris test suites are fail-capable (exit 1) as of the same
+change.
 
 . *[DONE — 2.2 (inversion); merkle-wiring deferred]* `verify` soundness. Lifted
   `verifyRefsHelper` / `parseBlockIdx` out of the instance `where` to top-level
