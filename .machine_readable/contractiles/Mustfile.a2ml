@@ -6,6 +6,8 @@
 # Run with: must check
 # Fix with: must fix (where a deterministic fix exists)
 
+project = "ochrance"
+
 @abstract:
 Physical-state invariants for rsr-template-repo. This is the canonical
 RSR template repository. These are hard requirements — CI and pre-commit

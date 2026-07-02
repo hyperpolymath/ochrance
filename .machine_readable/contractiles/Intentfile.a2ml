@@ -19,6 +19,8 @@
 #            Non-gating — this is a report, not a gate. See the `must`
 #            contractile for hard gates.
 
+project = "ochrance"
+
 @abstract:
 North-star contractile for rsr-template-repo. This repository is the
 canonical template for Rhodium Standard Repository compliance. It provides

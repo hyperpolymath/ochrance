@@ -4,6 +4,7 @@
 # AGENTIC.a2ml — AI agent constraints and capabilities
 # Defines what AI agents can and cannot do in this repository.
 [metadata]
+project = "ochrance"
 version = "0.1.0"
 last-updated = "2026-06-05"
 

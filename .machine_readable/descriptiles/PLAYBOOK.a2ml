@@ -4,6 +4,7 @@
 # PLAYBOOK.a2ml — Operational playbook
 # Runbooks, build/verify procedures, incident response.
 [metadata]
+project = "ochrance"
 version = "0.1.0"
 last-updated = "2026-06-05"
 
