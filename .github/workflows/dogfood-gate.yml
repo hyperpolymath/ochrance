@@ -249,6 +249,33 @@ jobs:
 
       - name: Check and validate eclexiaiser manifest
         id: eclex
+        # The validation script lives in env: rather than inline in run:
+        # because a YAML literal block ends at the first column-1 line — an
+        # unindented heredoc/py-snippet inside run: silently truncates the
+        # block and makes the whole workflow file unparseable (zero jobs,
+        # path shown as the workflow name). env: block scalars strip the
+        # base indentation, so Python receives clean unindented code.
+        env:
+          PYCODE: |
+            import tomllib, sys
+            with open('eclexiaiser.toml', 'rb') as f:
+                data = tomllib.load(f)
+            project = data.get('project', {})
+            if not project.get('name', '').strip():
+                print('ERROR: project.name is required', file=sys.stderr)
+                sys.exit(1)
+            functions = data.get('functions', [])
+            if not functions:
+                print('ERROR: at least one [[functions]] entry is required', file=sys.stderr)
+                sys.exit(1)
+            for fn in functions:
+                if not fn.get('name', '').strip():
+                    print('ERROR: function name cannot be empty', file=sys.stderr)
+                    sys.exit(1)
+                if not fn.get('source', '').strip():
+                    print(f'ERROR: function {fn["name"]} has no source path', file=sys.stderr)
+                    sys.exit(1)
+            print(f'Valid: {project["name"]} ({len(functions)} function(s))')
         run: |
           if [ ! -f "eclexiaiser.toml" ]; then
             # Check if repo has a Containerfile — if so, recommend eclexiaiser
@@ -261,28 +288,9 @@ jobs:
 
           echo "has_manifest=true" >> "$GITHUB_OUTPUT"
 
-          # Validate TOML structure using Python 3.11+ tomllib
-          python3 -c "
-import tomllib, sys
-with open('eclexiaiser.toml', 'rb') as f:
-    data = tomllib.load(f)
-project = data.get('project', {})
-if not project.get('name', '').strip():
-    print('ERROR: project.name is required', file=sys.stderr)
-    sys.exit(1)
-functions = data.get('functions', [])
-if not functions:
-    print('ERROR: at least one [[functions]] entry is required', file=sys.stderr)
-    sys.exit(1)
-for fn in functions:
-    if not fn.get('name', '').strip():
-        print('ERROR: function name cannot be empty', file=sys.stderr)
-        sys.exit(1)
-    if not fn.get('source', '').strip():
-        print(f'ERROR: function {fn[\"name\"]} has no source path', file=sys.stderr)
-        sys.exit(1)
-print(f'Valid: {project[\"name\"]} ({len(functions)} function(s))')
-" || {
+          # Validate TOML structure using Python 3.11+ tomllib (script in
+          # the step's env.PYCODE — see comment above)
+          python3 -c "$PYCODE" || {
             echo "::error file=eclexiaiser.toml::Invalid eclexiaiser.toml — see step output for details"
             exit 1
           }
