@@ -34,6 +34,11 @@ import Ochrance.Filesystem.Repair
 -- Test Infrastructure
 --------------------------------------------------------------------------------
 
+||| Pad a hex tag to a full 64-char digest (the validator enforces the
+||| exact 32-byte digest length, so toy hashes must be padded).
+hex64 : String -> String
+hex64 s = pack (Data.List.take 64 (unpack (s ++ "0000000000000000000000000000000000000000000000000000000000000000")))
+
 ||| Test result tracking
 record TestStats where
   constructor MkStats
@@ -470,7 +475,7 @@ validationTests = do
   -- Manifest with timestamp validates
   let mTs = MkManifest
         (MkManifestData "0.1.0" "test" (Just "2026-03-10T00:00:00Z"))
-        [MkRef "block_0" (MkHash BLAKE3 "abcdef0123456789")]
+        [MkRef "block_0" (MkHash BLAKE3 (hex64 "abcdef0123456789"))]
         Nothing Nothing
   let c8 = case validateManifest mTs of
               Right _ => True
@@ -480,9 +485,9 @@ validationTests = do
   -- Multiple refs all validated
   let mMulti = MkManifest
         (MkManifestData "0.1.0" "test" Nothing)
-        [ MkRef "a" (MkHash SHA256 "abcdef")
-        , MkRef "b" (MkHash SHA3_256 "012345")
-        , MkRef "c" (MkHash BLAKE3 "fedcba")
+        [ MkRef "a" (MkHash SHA256 (hex64 "abcdef"))
+        , MkRef "b" (MkHash SHA3_256 (hex64 "012345"))
+        , MkRef "c" (MkHash BLAKE3 (hex64 "fedcba"))
         ]
         Nothing Nothing
   let c9 = case validateManifest mMulti of
