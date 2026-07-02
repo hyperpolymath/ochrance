@@ -39,7 +39,7 @@ jobs:
 
       - name: Validate A2ML manifests
         if: steps.detect.outputs.count > 0
-        uses: hyperpolymath/a2ml-validate-action@b2f28c39491c0d1ff131b8fb9e197bfea79e411e # main
+        uses: hyperpolymath/a2ml-validate-action@c14a51a4f3766e239b5b912332828474dc2ae103 # main @ 2026-07-02 (adds colon/s-expr identity forms — ANCHOR.a2ml uses id:)
         with:
           path: '.'
           strict: 'false'
