@@ -8,7 +8,15 @@ on:
   push:
     branches: [main]
 
-permissions: read-all
+# The called reusable's scorecard job requests security-events:write +
+# id-token:write at job level. read-all cannot cover write scopes and a
+# called workflow can only narrow the caller's token — so every run was
+# a startup_failure. Grant exactly the superset the callee needs.
+permissions:
+  contents: read
+  actions: read
+  security-events: write
+  id-token: write
 
 jobs:
   analysis:
