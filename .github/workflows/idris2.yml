@@ -34,7 +34,7 @@ jobs:
     container:
       image: ghcr.io/stefan-hoeck/idris2-pack@sha256:7116e4fc2c68ff6345139a55d908e9dd1c7acabaf197c32e709deae3448dd7d7 # :latest @ 2026-07-01, Idris 2 v0.8.0
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Container deps (xz-utils — setup-zig extracts a .tar.xz; image lacks xz)
         run: apt-get update -qq && apt-get install -y -qq xz-utils
       - name: Set up Zig 0.15.2 (for the FFI runtime test)
