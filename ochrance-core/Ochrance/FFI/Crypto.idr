@@ -39,6 +39,11 @@ import Ochrance.Framework.Error
 -- ABI contract for ed25519_verify:
 --   int ed25519_verify(const uint8_t[64] sig, const uint8_t[32] pk,
 --                      const uint8_t* msg, size_t msg_len) -> 0|1
+-- ABI contract for the deterministic signer (seed-derived keypair):
+--   int ed25519_public_key_from_seed(const uint8_t[32] seed,
+--                                    uint8_t pk_out[32]) -> 0|-1
+--   int ed25519_sign(const uint8_t[32] seed, const uint8_t* msg,
+--                    size_t msg_len, uint8_t sig_out[64]) -> 0|-1
 --------------------------------------------------------------------------------
 
 %foreign "C:blake3_hash,libochrance"
@@ -52,6 +57,12 @@ prim__sha3_256 : Buffer -> Int -> Buffer -> PrimIO ()
 
 %foreign "C:ed25519_verify,libochrance"
 prim__ed25519_verify : Buffer -> Buffer -> Buffer -> Int -> PrimIO Int
+
+%foreign "C:ed25519_public_key_from_seed,libochrance"
+prim__ed25519_pk_from_seed : Buffer -> Buffer -> PrimIO Int
+
+%foreign "C:ed25519_sign,libochrance"
+prim__ed25519_sign : Buffer -> Buffer -> Int -> Buffer -> PrimIO Int
 
 --------------------------------------------------------------------------------
 -- Buffer Helpers
@@ -200,6 +211,74 @@ ed25519VerifyHex sigHex pkHex msg = do
         case result of
           Left err   => pure (Left err)
           Right valid => pure (Right (Just valid))
+
+--------------------------------------------------------------------------------
+-- Ed25519 Deterministic Signer (seed-derived keypair)
+--
+-- Production verification only ever *verifies* (ed25519Verify above); these
+-- signer bindings exist so manifests can be attested from Idris (signer
+-- tooling) and so CI can prove the positive path end-to-end: sign the
+-- canonical manifest bytes, then watch validateManifestIO accept them and
+-- reject any tampered field.
+--------------------------------------------------------------------------------
+
+||| Convert a List of exactly 64 elements to a Vect 64, defaulting defensively.
+||| Safe for the same reason as listToVect32: we control the read length.
+listToVect64 : List Bits8 -> Vect 64 Bits8
+listToVect64 bs = case toVect 64 bs of
+  Just v  => v
+  Nothing => replicate 64 0  -- Defensive: should never happen when called correctly
+  where
+    toVect : (n : Nat) -> List Bits8 -> Maybe (Vect n Bits8)
+    toVect Z [] = Just []
+    toVect (S k) (x :: xs) = map (x ::) (toVect k xs)
+    toVect _ _ = Nothing
+
+||| Derive the Ed25519 public key of the deterministic keypair for a seed.
+||| Returns Right Nothing if the FFI rejects the seed (degenerate keypair),
+||| Left on buffer allocation failure.
+export
+ed25519PublicKeyFromSeed : HasIO io
+                        => (seed : Vect 32 Bits8)
+                        -> io (Either OchranceError (Maybe (Vect 32 Bits8)))
+ed25519PublicKeyFromSeed seed = liftIO $ do
+  Just seedBuf <- newBuffer 32
+    | Nothing => pure (Left (ZError OutOfMemory))
+  writeBytesToBuffer seedBuf (toList seed) 0
+  Just pkBuf <- newBuffer 32
+    | Nothing => pure (Left (ZError OutOfMemory))
+  rc <- primIO (prim__ed25519_pk_from_seed seedBuf pkBuf)
+  if rc /= 0
+     then pure (Right Nothing)
+     else do
+       pkBytes <- readBytesFromBuffer pkBuf 32 0
+       pure (Right (Just (listToVect32 pkBytes)))
+
+||| Sign a message with the deterministic Ed25519 keypair for a seed.
+||| The signature verifies under ed25519PublicKeyFromSeed's key for the
+||| same seed. Returns Right Nothing if the FFI rejects the seed, Left on
+||| buffer allocation failure.
+export
+ed25519Sign : HasIO io
+           => (seed : Vect 32 Bits8)
+           -> (message : List Bits8)
+           -> io (Either OchranceError (Maybe (Vect 64 Bits8)))
+ed25519Sign seed msg = liftIO $ do
+  let msgLen = cast {to=Int} (length msg)
+  Just seedBuf <- newBuffer 32
+    | Nothing => pure (Left (ZError OutOfMemory))
+  writeBytesToBuffer seedBuf (toList seed) 0
+  Just msgBuf <- newBuffer (max 1 msgLen)
+    | Nothing => pure (Left (ZError OutOfMemory))
+  writeBytesToBuffer msgBuf msg 0
+  Just sigBuf <- newBuffer 64
+    | Nothing => pure (Left (ZError OutOfMemory))
+  rc <- primIO (prim__ed25519_sign seedBuf msgBuf msgLen sigBuf)
+  if rc /= 0
+     then pure (Right Nothing)
+     else do
+       sigBytes <- readBytesFromBuffer sigBuf 64 0
+       pure (Right (Just (listToVect64 sigBytes)))
 
 --------------------------------------------------------------------------------
 -- Hash Combiners (for Merkle trees)

@@ -266,21 +266,93 @@ validateManifest m = do
   Right (MkValidManifest m)
 
 --------------------------------------------------------------------------------
--- Helper Functions
+-- Canonical Signing Serialization (convention v1)
+--
+-- The bytes an attestation signature covers. Two properties matter:
+--
+--   1. Every semantically meaningful field is bound: version, subsystem,
+--      timestamp, all refs, the policy, and the attestation's witness and
+--      pubkey. Only the signature itself is excluded (it cannot sign
+--      itself). An earlier form covered just version ++ subsystem ++ refs,
+--      so timestamp, policy and witness were freely tamperable on a
+--      "signed" manifest.
+--
+--   2. The encoding is delimited: every variable-length field carries an
+--      8-byte big-endian length prefix, lists carry a count prefix, and
+--      optional fields carry a presence byte. Bare concatenation let
+--      distinct manifests serialize identically (boundary shift:
+--      version="ab"/subsystem="c" vs version="a"/subsystem="bc").
+--
+-- Signers MUST produce exactly these bytes: construct the manifest with
+-- its attestation (witness + pubkey, signature field ignored), then sign
+-- blake3(serializeForSigning m). CI enforces the positive path end-to-end
+-- in tests/ffi/CryptoFFITest.idr. Any change to this layout is a breaking
+-- change to the signing convention and must bump the domain tag.
 --------------------------------------------------------------------------------
 
 stringToBytes : String -> List Bits8
 stringToBytes s = map (cast . ord) (unpack s)
 
-refToBytes : Ref -> List Bits8
-refToBytes r = stringToBytes (r.name ++ show r.hash)
+||| 8-byte big-endian encoding of a Nat (field lengths and list counts;
+||| real values are far below 2^64).
+natToBE8 : Nat -> List Bits8
+natToBE8 n =
+  let i = cast {to=Integer} n
+      byte : Integer -> Bits8
+      byte x = cast (x `mod` 256)
+  in [ byte (i `div` 72057594037927936)   -- 256^7
+     , byte (i `div` 281474976710656)     -- 256^6
+     , byte (i `div` 1099511627776)       -- 256^5
+     , byte (i `div` 4294967296)          -- 256^4
+     , byte (i `div` 16777216)            -- 256^3
+     , byte (i `div` 65536)               -- 256^2
+     , byte (i `div` 256)
+     , byte i ]
 
+lenPrefixed : List Bits8 -> List Bits8
+lenPrefixed bs = natToBE8 (length bs) ++ bs
+
+fieldStr : String -> List Bits8
+fieldStr s = lenPrefixed (stringToBytes s)
+
+||| Optional fields carry an explicit presence byte so Nothing and
+||| Just-with-empty-content cannot collide.
+fieldOpt : (a -> List Bits8) -> Maybe a -> List Bits8
+fieldOpt _ Nothing  = [0]
+fieldOpt f (Just x) = 1 :: f x
+
+fieldBool : Bool -> List Bits8
+fieldBool False = [0]
+fieldBool True  = [1]
+
+refToBytes : Ref -> List Bits8
+refToBytes r = fieldStr r.name
+            ++ fieldStr (show r.hash.algorithm)
+            ++ fieldStr r.hash.value
+
+policyToBytes : Policy -> List Bits8
+policyToBytes p = fieldStr (show p.mode)
+               ++ fieldOpt natToBE8 p.maxAge
+               ++ fieldBool p.requireSig
+
+||| Witness and pubkey are signed; the signature field is excluded.
+attestationToBytes : Attestation -> List Bits8
+attestationToBytes a = fieldStr a.witness ++ fieldStr a.pubkey
+
+||| Canonical signing bytes of a manifest — see the convention note above.
+||| Exported so signer tooling and the end-to-end CI test produce exactly
+||| the bytes the validator verifies.
+export
 serializeForSigning : Manifest -> List Bits8
 serializeForSigning m =
-  let versionBytes = stringToBytes m.manifestData.version
-      subsystemBytes = stringToBytes m.manifestData.subsystem
-      refsBytes = concatMap refToBytes m.refs
-  in versionBytes ++ subsystemBytes ++ refsBytes
+     stringToBytes "ochrance-sign-v1"
+  ++ fieldStr m.manifestData.version
+  ++ fieldStr m.manifestData.subsystem
+  ++ fieldOpt fieldStr m.manifestData.timestamp
+  ++ natToBE8 (length m.refs)
+  ++ concatMap refToBytes m.refs
+  ++ fieldOpt policyToBytes m.policy
+  ++ fieldOpt attestationToBytes m.attestation
 
 ||| Verify Ed25519 signature.
 ||| Returns False on hex parsing failure or buffer allocation failure.
