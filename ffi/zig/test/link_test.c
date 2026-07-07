@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: MPL-2.0
+ * Copyright (c) Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
  *
  * link_test.c — runtime link + C-ABI conformance test for libochrance.so.
  *
@@ -29,6 +30,9 @@
 typedef void (*hash_fn)(const uint8_t *data, size_t len, uint8_t *out);
 typedef int (*ed25519_fn)(const uint8_t *sig, const uint8_t *pk,
                           const uint8_t *msg, size_t msg_len);
+typedef int (*ed25519_pk_fn)(const uint8_t *seed, uint8_t *pk_out);
+typedef int (*ed25519_sign_fn)(const uint8_t *seed, const uint8_t *msg,
+                               size_t msg_len, uint8_t *sig_out);
 typedef const char *(*version_fn)(void);
 
 static int failures = 0;
@@ -92,6 +96,9 @@ int main(int argc, char **argv) {
     hash_fn sha256 = (hash_fn)must_sym(h, "sha256_hash");
     hash_fn sha3_256 = (hash_fn)must_sym(h, "sha3_256_hash");
     ed25519_fn ed25519_verify = (ed25519_fn)must_sym(h, "ed25519_verify");
+    ed25519_pk_fn ed25519_pk_from_seed =
+        (ed25519_pk_fn)must_sym(h, "ed25519_public_key_from_seed");
+    ed25519_sign_fn ed25519_sign = (ed25519_sign_fn)must_sym(h, "ed25519_sign");
     version_fn version = (version_fn)must_sym(h, "ochrance_version");
     if (failures) {
         dlclose(h);
@@ -137,13 +144,27 @@ int main(int argc, char **argv) {
           memcmp(cmb_zz, zero32, 32) != 0);
 
     /* ed25519_verify is callable across the ABI and rejects garbage with 0
-     * (rather than trapping). The positive signing path is covered by the
-     * in-module Zig test "ed25519_verify accepts valid and rejects tampered". */
+     * (rather than trapping). */
     uint8_t sig[64], pk[32];
     memset(sig, 0, sizeof(sig));
     memset(pk, 0, sizeof(pk));
     check("ed25519_verify rejects all-zero garbage (returns 0, no trap)",
           ed25519_verify(sig, pk, (const uint8_t *)"abc", 3) == 0);
+
+    /* Positive signing path across the ABI: derive a deterministic keypair
+     * from a seed, sign, verify, then reject a tampered message. This is the
+     * exact contract the Idris signer bindings (ed25519Sign /
+     * ed25519PublicKeyFromSeed) rely on at runtime. */
+    uint8_t seed[32];
+    memset(seed, 0x42, sizeof(seed));
+    check("ed25519_public_key_from_seed returns 0",
+          ed25519_pk_from_seed(seed, pk) == 0);
+    check("ed25519_sign returns 0",
+          ed25519_sign(seed, (const uint8_t *)"ochrance", 8, sig) == 0);
+    check("signed message verifies under seed-derived public key",
+          ed25519_verify(sig, pk, (const uint8_t *)"ochrance", 8) == 1);
+    check("tampered message rejected",
+          ed25519_verify(sig, pk, (const uint8_t *)"ochrancf", 8) == 0);
 
     /* String ABI smoke: version is a stable NUL-terminated C string. */
     const char *v = version();

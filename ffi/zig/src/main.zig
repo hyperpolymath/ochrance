@@ -299,6 +299,35 @@ export fn ed25519_verify(
     return 1;
 }
 
+/// Derive the Ed25519 public key of the deterministic keypair for a 32-byte
+/// seed. Writes 32 bytes to `pk_out`. Returns 0 on success, -1 if the seed
+/// derives a degenerate keypair (rejected by std.crypto).
+export fn ed25519_public_key_from_seed(seed: [*]const u8, pk_out: [*]u8) c_int {
+    const seed_bytes: [32]u8 = seed[0..32].*;
+    const kp = Ed25519.KeyPair.generateDeterministic(seed_bytes) catch return -1;
+    const pk = kp.public_key.toBytes();
+    @memcpy(pk_out[0..32], &pk);
+    return 0;
+}
+
+/// Sign `msg` with the deterministic Ed25519 keypair for a 32-byte seed.
+/// Writes a 64-byte signature to `sig_out`. Returns 0 on success, -1 on
+/// failure. The signature verifies under the public key produced by
+/// `ed25519_public_key_from_seed` for the same seed.
+export fn ed25519_sign(
+    seed: [*]const u8,
+    msg: [*]const u8,
+    msg_len: usize,
+    sig_out: [*]u8,
+) c_int {
+    const seed_bytes: [32]u8 = seed[0..32].*;
+    const kp = Ed25519.KeyPair.generateDeterministic(seed_bytes) catch return -1;
+    const signature = kp.sign(msg[0..msg_len], null) catch return -1;
+    const sig = signature.toBytes();
+    @memcpy(sig_out[0..64], &sig);
+    return 0;
+}
+
 //==============================================================================
 // Tests
 //==============================================================================
@@ -394,5 +423,34 @@ test "ed25519_verify accepts valid and rejects tampered" {
     try std.testing.expectEqual(
         @as(c_int, 0),
         ed25519_verify(&sig_bytes, &wrong_pk, message.ptr, message.len),
+    );
+}
+
+test "ed25519_sign round-trips through ed25519_verify" {
+    const seed = [_]u8{0x42} ** 32;
+    const message: []const u8 = "ochrance canonical signing bytes";
+
+    var pk: [32]u8 = undefined;
+    try std.testing.expectEqual(@as(c_int, 0), ed25519_public_key_from_seed(&seed, &pk));
+
+    var sig: [64]u8 = undefined;
+    try std.testing.expectEqual(@as(c_int, 0), ed25519_sign(&seed, message.ptr, message.len, &sig));
+
+    // The exported signer's output verifies under the exported verifier.
+    try std.testing.expectEqual(
+        @as(c_int, 1),
+        ed25519_verify(&sig, &pk, message.ptr, message.len),
+    );
+
+    // Signing is deterministic for a given seed and message.
+    var sig2: [64]u8 = undefined;
+    try std.testing.expectEqual(@as(c_int, 0), ed25519_sign(&seed, message.ptr, message.len, &sig2));
+    try std.testing.expectEqualSlices(u8, &sig, &sig2);
+
+    // A different message does not verify under the old signature.
+    const other: []const u8 = "ochrance canonical signing bytez";
+    try std.testing.expectEqual(
+        @as(c_int, 0),
+        ed25519_verify(&sig, &pk, other.ptr, other.len),
     );
 }

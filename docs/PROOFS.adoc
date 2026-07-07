@@ -240,6 +240,23 @@ check) and runs the Idris→Zig FFI runtime test (`tests/ffi/run_ffi_test.sh`),
 so the production-Merkle-root-is-real-BLAKE3 fact is re-verified on every
 change. The three Idris test suites are fail-capable (exit 1) as of the same
 change.
++
+SIGNING CONVENTION v1 (2026-07-07): `serializeForSigning` is now the canonical,
+delimited signing serialization — domain tag `ochrance-sign-v1`, 8-byte
+big-endian length prefix on every variable-length field, count prefix on the
+ref list, presence byte on optionals — binding *all* semantic fields: version,
+subsystem, timestamp, refs, policy, and the attestation's witness + pubkey
+(only the signature itself is excluded). The prior form concatenated bare
+version/subsystem/refs bytes, so (a) timestamp, policy and witness were
+tamperable on a "signed" manifest and (b) distinct manifests could serialize
+identically (boundary shift `ab|c` = `a|bc`). The positive path is now
+CI-enforced end-to-end: the Zig FFI gained a deterministic Ed25519 signer
+(`ed25519_sign` / `ed25519_public_key_from_seed`, KAT-tested in-module and in
+the dlopen link test), and `tests/ffi/CryptoFFITest.idr` signs
+`blake3(serializeForSigning m)` with it, watches `validateManifestIO` accept
+the manifest, and confirms tampering timestamp / witness / ref digest each
+flips the result to `SignatureVerificationFailed`. Any layout change is a
+breaking convention change and must bump the domain tag.
 
 . *[DONE — 2.2 (inversion); merkle-wiring deferred]* `verify` soundness. Lifted
   `verifyRefsHelper` / `parseBlockIdx` out of the instance `where` to top-level
