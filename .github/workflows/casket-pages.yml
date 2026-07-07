@@ -14,7 +14,10 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Cold cabal build of casket-ssg (GHC 9.8.2) exceeds 15 minutes, and a
+    # timed-out job never saves its cache, so every run stayed cold. 60 min
+    # covers the cache-priming build; warm runs take ~2-3 min.
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v4
@@ -28,8 +31,9 @@ jobs:
         with:
           ghc-version: '9.8.2'
           cabal-version: '3.10'
-      - name: Cache Cabal
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - name: Restore Cabal cache
+        id: cabal-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cabal/packages
@@ -39,6 +43,17 @@ jobs:
       - name: Build casket-ssg
         working-directory: .casket-ssg
         run: cabal build
+      # Save even if the build step failed or timed out, so partial compilation
+      # progress carries into the next run instead of restarting cold.
+      - name: Save Cabal cache
+        if: always() && steps.cabal-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cabal/packages
+            ~/.cabal/store
+            .casket-ssg/dist-newstyle
+          key: ${{ runner.os }}-casket-${{ hashFiles('.casket-ssg/casket-ssg.cabal') }}
       - name: Prepare site source
         shell: bash
         run: |
