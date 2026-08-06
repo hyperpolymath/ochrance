@@ -5,8 +5,6 @@ on:
   branch_protection_rule:
   schedule:
     - cron: '23 4 * * 1'
-  push:
-    branches: [main]
 
 # The called reusable's scorecard job requests security-events:write +
 # id-token:write at job level. read-all cannot cover write scopes and a
