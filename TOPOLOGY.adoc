@@ -1,15 +1,8 @@
-<!--
-SPDX-License-Identifier: CC-BY-SA-4.0
-Copyright (c) Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
--->
-<!-- TOPOLOGY.md — Project architecture map and completion dashboard -->
-<!-- Last updated: 2026-07-02 -->
+== Ochránce — Project Topology
 
-# Ochránce — Project Topology
+=== System Architecture
 
-## System Architecture
-
-```
+....
                         ┌─────────────────────────────────────────┐
                         │              OPERATOR / ADMIN           │
                         │        (Filesystem Audit / Verification)│
@@ -50,17 +43,19 @@ Copyright (c) Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
                         │  Justfile Automation  .machine_readable/  │
                         │  Idris2 ipkg          0-AI-MANIFEST.a2ml  │
                         └─────────────────────────────────────────┘
-```
+....
 
-## Completion Dashboard
+=== Completion Dashboard
 
-> Percentages track **proof / verification completeness** — the honest axis for a
-> verification framework — **not** "code exists". `docs/PROOFS.adoc` is the
-> authoritative ledger; this dashboard only summarises it. Where an implementation
-> exists but its correctness is unproven (or is a stub), the bar reflects the
-> *proof*, not the code.
+____
+Percentages track *proof / verification completeness* — the honest axis
+for a verification framework — *not* "`code exists`".
+`+docs/PROOFS.adoc+` is the authoritative ledger; this dashboard only
+summarises it. Where an implementation exists but its correctness is
+unproven (or is a stub), the bar reflects the _proof_, not the code.
+____
 
-```
+....
 COMPONENT                            STATUS         NOTES (proof / verification axis)
 ───────────────────────────────────  ──────────────  ────────────────────────────────────────────
 CORE VERIFICATION (IDRIS2)
@@ -101,30 +96,32 @@ REPO INFRASTRUCTURE
 OVERALL (proof axis):                 ███████░░░ ~70% Stages 1–3 done (mod named hypotheses);
                                                       Stage 4 open: Merkle completeness, monotonicity
                                                       cases, VerifiedSubsystem law. See docs/PROOFS.adoc.
-```
+....
 
-## Key Dependencies
+=== Key Dependencies
 
-```
+....
 A2ML Manifest ───► Idris2 Parser ───► Merkle Root ───► Attestation
      │                 │                 │                │
      ▼                 ▼                 ▼                ▼
 Linear Repr ─────► Verified FS ──────► C FFI ───────► ECHIDNA (ML)
-```
+....
 
-## Update Protocol
+=== Update Protocol
 
 This file is maintained by both humans and AI agents. When updating:
 
-1. **After completing a component**: Change its bar and percentage
-2. **After adding a component**: Add a new row in the appropriate section
-3. **After architectural changes**: Update the ASCII diagram
-4. **Date**: Update the `Last updated` comment at the top of this file
+[arabic]
+. *After completing a component*: Change its bar and percentage
+. *After adding a component*: Add a new row in the appropriate section
+. *After architectural changes*: Update the ASCII diagram
+. *Date*: Update the `+Last updated+` comment at the top of this file
 
-Progress bars use: `█` (filled) and `░` (empty), 10 characters wide.
-Percentages: 0%, 10%, 20%, ... 100% (in 10% increments).
+Progress bars use: `+█+` (filled) and `+░+` (empty), 10 characters wide.
+Percentages: 0%, 10%, 20%, … 100% (in 10% increments).
 
-The bars track **proof / verification completeness** against `docs/PROOFS.adoc`
-(the authoritative ledger), not whether code merely exists. Do not raise a bar to
-100% on the strength of an implementation alone — a component is "done" only when
-its correctness is proven or honestly bounded per the ledger.
+The bars track *proof / verification completeness* against
+`+docs/PROOFS.adoc+` (the authoritative ledger), not whether code merely
+exists. Do not raise a bar to 100% on the strength of an implementation
+alone — a component is "`done`" only when its correctness is proven or
+honestly bounded per the ledger.
