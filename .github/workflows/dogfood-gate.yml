@@ -39,11 +39,7 @@ jobs:
 
       - name: Validate A2ML manifests
         if: steps.detect.outputs.count > 0
-        uses: hyperpolymath/a2ml-validate-action@0f8081cdfa293663ec6b204274b4272da302e564 # main @ 2026-07-02 (adds colon/s-expr identity forms — ANCHOR.a2ml uses id:)
-        with:
-          path: '.'
-          strict: 'false'
-
+        run: bash .githooks/validate-a2ml.sh
       - name: Write summary
         run: |
           A2ML_COUNT="${{ steps.detect.outputs.count }}"
@@ -88,11 +84,7 @@ jobs:
 
       - name: Validate K9 contracts
         if: steps.detect.outputs.k9_count > 0
-        uses: hyperpolymath/k9-validate-action@b4b4bd64851e55e003fc756ca706c19f3442e999 # main
-        with:
-          path: '.'
-          strict: 'false'
-
+        run: bash .githooks/validate-k9.sh
       - name: Write summary
         run: |
           K9_COUNT="${{ steps.detect.outputs.k9_count }}"
@@ -130,7 +122,7 @@ jobs:
           # Checks for: zero-width spaces, zero-width joiners, BOM, soft hyphens,
           # non-breaking spaces, null bytes, and other invisible Unicode in source files.
           set +e
-          PATTERNS='\xc2\xa0|\xe2\x80\x8b|\xe2\x80\x8c|\xe2\x80\x8d|\xef\xbb\xbf|\xc2\xad|\xe2\x80\x8e|\xe2\x80\x8f|\xe2\x80\xaa|\xe2\x80\xab|\xe2\x80\xac|\xe2\x80\xad|\xe2\x80\xae|\x00'
+          PATTERNS='\x00|[\x01-\x08\x0B\x0C\x0E-\x1F]|\x{a0}|\x{ad}|\x{200b}|\x{200c}|\x{200d}|\x{200e}|\x{200f}|\x{202a}|\x{202b}|\x{202c}|\x{202d}|\x{202e}|\x{2060}|\x{feff}'
           find "$GITHUB_WORKSPACE" \
             -not -path '*/.git/*' -not -path '*/node_modules/*' \
             -not -path '*/.deno/*' -not -path '*/target/*' \
@@ -141,7 +133,7 @@ jobs:
               -o -name '*.yml' -o -name '*.yaml' -o -name '*.md' -o -name '*.adoc' \
               -o -name '*.idr' -o -name '*.zig' -o -name '*.v' -o -name '*.jl' \
               -o -name '*.gleam' -o -name '*.hs' -o -name '*.ml' -o -name '*.sh' \) \
-            -exec grep -Prl "$PATTERNS" {} \; > /tmp/empty-lint-results.txt 2>/dev/null
+            -exec grep -aPrl "$PATTERNS" {} \; > /tmp/empty-lint-results.txt 2>/dev/null
           EL_EXIT=$?
           set -e
 
