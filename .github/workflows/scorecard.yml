@@ -2,6 +2,15 @@
 name: Scorecards supply-chain security
 
 on:
+  push:
+    branches: [main, master]
+  # The reusable's pull-request job measures the repo-level Scorecard checks at
+  # HEAD and merges them into the PR-tree SARIF, so the code_scanning rule sees
+  # all three supply-chain categories instead of waiting forever on two that a
+  # pull_request event can never produce. Without this trigger that job — which
+  # already exists in the reusable — never fires.
+  pull_request:
+    branches: [main, master]
   branch_protection_rule:
   schedule:
     - cron: '23 4 * * 1'
@@ -18,5 +27,5 @@ permissions:
 
 jobs:
   analysis:
-    uses: hyperpolymath/standards/.github/workflows/scorecard-reusable.yml@81dbf2dd854b1444fd6236fa2352474383b2c2b9
+    uses: hyperpolymath/standards/.github/workflows/scorecard-reusable.yml@da2c748aad55c1a1dcba00b60fe4a35017bc6540 # newest lockfile-consistent standards commit, 2026-09-10
     secrets: inherit
