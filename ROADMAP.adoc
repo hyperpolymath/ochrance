@@ -169,7 +169,7 @@ Target: Production-ready filesystem verification for OSTree deployments
 
 == Contributing
 
-See link:CONTRIBUTING.md[CONTRIBUTING.md] for guidelines on:
+See link:.github/CONTRIBUTING.md[CONTRIBUTING.md] for guidelines on:
 
 * Writing total Idris2 functions
 * Property-based testing
