@@ -1,0 +1,79 @@
+// SPDX-License-Identifier: MPL-2.0
+= Web-session toolchain (issue #44)
+
+== Scope and safety
+
+CI pins Idris2 0.8.0 and Zig 0.15.2. The existing Claude-only SessionStart
+hook already attempts to install both, but requires system write access.
+For other/restricted sessions, the opt-in Zig installer below needs no root,
+does not modify system Python or shell profiles, and does not replace that hook.
+It is a partial delivery of #44, not a claim that every web host has persistent storage.
+
+== User-local Zig
+
+On Linux x86_64 or aarch64, with Python 3, venv/pip and network access to
+`pypi.org` and `files.pythonhosted.org`:
+
+[source,bash]
+----
+bash .devcontainer/install-zig.sh
+# Follow the printed export command to activate for this shell.
+zig version  # 0.15.2
+----
+
+The default location is `${XDG_DATA_HOME:-$HOME/.local/share}/ochrance/zig-0.15.2`.
+Set `OCHRANCE_ZIG_HOME` to an absolute path on a persistent volume if needed.
+The installer does not activate the tool implicitly: unrelated projects keep
+their existing PATH. Re-running a completed installation is offline and cheap.
+A fresh container without that volume will need a new installation.
+
+This uses the PyPI `ziglang` distribution, the same alternative distribution
+route as the existing hook, not a direct ziglang.org download. The exact
+Linux wheels are SHA-256 pinned in `.devcontainer/zig-requirements.txt`;
+other platforms and source distributions are rejected. Updating requires
+reviewing the version, wheel provenance and hashes together. No unverified
+fallback mirror is tried. Python is only the distribution launcher, not a
+new application runtime dependency.
+
+If setup fails, it exits nonzero and releases its installation lock. A killed
+process can leave `.install-lock` behind: confirm no installer is running before
+removing that empty directory. Retry explicitly after resolving dependencies or
+network access. No broad cleanup command is run against the chosen prefix.
+
+Validation:
+
+[source,bash]
+----
+bash tests/toolchain/install_zig_test.sh
+(cd ffi/zig && zig build test --summary all)
+bash ffi/zig/test/run_link_test.sh
+----
+
+== Idris2 and remaining work
+
+The existing `.github/workflows/idris2.yml` digest-pinned container is the CI
+reference. On a conventional Linux host, source bootstrap of Idris2 v0.8.0
+(commit `15a3e4e70843f7a34100f6470c04b791330788df`) requires Chez Scheme,
+a C toolchain, make and GMP development headers. Use an explicit user-local
+PREFIX when following upstream installation instructions; do not replace a
+working system compiler or assume the placeholder devcontainer is ready.
+
+The next #44 delivery should make that full bootstrap repeatable without root
+and test the image/volume lifecycle. This patch does not alter the legacy hook's
+apt behavior, install Agda, or silently change the available Idris backends.
+
+== Validation performed on 2026-09-25
+
+* Fresh user-local Zig installation with pinned wheel hashes on Linux x86_64;
+  repeat invocation reused it. aarch64 hash is supplied but execution is untested.
+* Eight offline installer boundary/restart/failure scenarios.
+* Zig 0.15.2: 25/25 tests; C dlopen known-answer/link test passed.
+* Idris2 0.8.0: core and separate ABI packages compiled; parser suite passed,
+  property suite 47/47, integration suite 55/55, Idris-to-Zig runtime suite 12/12.
+* Structural E2E: 27/27.
+
+For this session only, Chez 10.0.0 was built in ignored scratch storage and
+Idris2 bootstrapped with its Chez backend. GMP development headers were unavailable,
+so refc support was omitted in the scratch compiler build; no repository source
+or CI build was altered for that workaround. These results cover the backend
+used by CI, not a full installer/image or refc qualification.
