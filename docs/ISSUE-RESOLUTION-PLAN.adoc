@@ -64,3 +64,26 @@ allowing only the eight new timeout values. Preserve all pre-existing timeouts.
 
 The current main run of Mirror to Git Forges was already failing before this patch;
 track any repeated failure separately rather than changing credentials or disabling it.
+
+== Follow-up integration evidence (2026-09-25)
+
+The Actions run page exposes the startup annotation hidden by the jobs API:
+`Actor is not allowed to trigger Actions workflows. Workflow file: '.github/workflows/idris2.yml'.`
+See https://github.com/hyperpolymath/ochrance/actions/runs/36128183989[Idris2 run].
+There are no jobs to debug. Repository Actions-permissions APIs also return 403.
+Do not edit workflow permissions, invent a token, or weaken branch protections.
+An authorized maintainer must rerun/trigger the checks, or the GitHub App's
+Actions-trigger authorization must be corrected. Local results are useful evidence,
+not a replacement for required GitHub checks; keep the PR unmerged until they pass.
+
+Bounded follow-ups in this branch:
+
+* #44: opt-in checksum-pinned user-local Zig installer, restart/failure tests and
+  link:WEB-TOOLCHAIN.adoc[documented usage]. Existing hook and system tools unchanged.
+* #39: compile the separate ABI package in the existing Idris2 CI job.
+  This closes a validation gap, not the zero-digest stub or ECHIDNA integration.
+  The stub's allocation/error contract still needs an explicit decision before
+  replacing it; this patch changes no public signatures or runtime implementations.
+* Real local compiled validation is now available (results and the Chez-only
+  bootstrap limitation are recorded in WEB-TOOLCHAIN.adoc), superseding the initial
+  sandbox-toolchain limitation above. No umbrella issue is closed.
