@@ -43,6 +43,8 @@ jobs:
           version: 0.15.2
       - name: Build core (type-checks all modules under --total)
         run: idris2 --build ochrance.ipkg
+      - name: Build ABI definitions (separate package; issue 39)
+        run: idris2 --build ochrance-abi.ipkg
       - name: Install package (needed by the test ipkgs)
         run: idris2 --install ochrance.ipkg
       - name: A2ML parser tests
