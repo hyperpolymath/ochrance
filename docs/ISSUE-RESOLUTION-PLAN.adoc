@@ -1,0 +1,66 @@
+// SPDX-License-Identifier: MPL-2.0
+= Issue resolution plan
+:toc:
+
+Evidence snapshot: 2026-09-25, starting from `ed6a504` on `main`.
+Scope: open issues #39–#44 in `hyperpolymath/ochrance`.
+This is a delivery plan, not a claim that the umbrella issues are complete.
+
+== Safety rules
+
+* Small, independently revertible pull requests; preserve branch protections.
+* No new axioms, proof shortcuts, cryptographic substitutions, or invented external ABIs.
+* Do not change runtime code merely to make CI green.
+* Retain existing test gates, permissions, pinned dependencies, and generous cold-build budgets.
+* Merge only after the relevant checks pass; investigate failures rather than bypassing them.
+* Never close an estate-wide issue for a local-only fix, or dismiss a security alert without evidence.
+
+== Ordered work queue
+
+[cols="1,2,4,4",options="header"]
+|===
+|Priority / issue |Disposition |Work |Acceptance / dependency
+|1 — #43 |Deliver local timeout fix now
+|Add missing timeouts to CodeQL, Guix/Nix policy, label triage, label sync, both quality jobs, security policy, and Zig FFI. Preserve existing limits, notably Pages' 60-minute cold-build allowance and Idris2's 30 minutes.
+|Every local runner job has a positive timeout. Reusable-workflow callers must not receive this unsupported key; their budgets belong upstream. Workflow security, Idris2, Zig FFI and structural checks pass.
+
+|1 — #43 remainder |Security triage blocked on evidence/access
+|Identify the historical critical finding from full scan output; compare with current findings. Check learning submission in the pinned standards reusable workflow before changing anything.
+|Record rule, location, exploitability and remediation before dismissal. Code-scanning API returned 403; latest findings artifact download failed in this session. Do not infer that the critical is fixed from a successful advisory scan. Token provisioning is an owner/estate task, not a reason to broaden local permissions or silence failures.
+
+|2 — #44 |Conventional engineering, separate PR
+|Replace the placeholder development container with a reproducible environment aligned to CI: Idris2 0.8.0 and Zig 0.15.2. Add a usable devcontainer configuration and documented non-container fallback. Reconcile `mise.toml`'s floating Zig and obsolete Justfile version guidance once the installation path is tested.
+|Build from a clean environment; verify versions; build core and ABI separately; run all three Idris suites, Zig tests, C dlopen test and Idris-to-Zig runtime test. Demonstrate restart persistence/cache behavior and checksum-verified downloads. Current sandbox has neither compiler nor container engine; avoid committing an untested replacement image. Network allowlisting remains environment administration.
+
+|3 — #39 |Split conventional FFI work from research
+|Core crypto production wiring is already present, as also noted in the issue's PR #67 update. The separate ABI `blake3Hash` still returns 32 zero bytes. Implement it only with explicit allocation/error handling and the actual library contract. Treat ECHIDNA as a separate integration requiring its authoritative ABI and available library.
+|Compile `ochrance-abi.ipkg` (not currently built by the core Idris CI job); add executable known-answer tests for empty, nonempty and binary input through the ABI wrapper, plus allocation/error-path coverage. Preserve existing Merkle proof/spec distinction. ECHIDNA requires real link/runtime success and failure tests; no fabricated theorem or assumed proof result.
+
+|4 — #40 |Cross-repository decision first
+|Compare authoritative standards and template files at recorded commits, not README summaries. Decide canonical paths and phase vocabulary with maintainers.
+|Publish a file-level reconciliation matrix and agreed authority before migrating local layout. Do not invent policy in this repository.
+
+|5 — #41 |Depends on #40
+|Import only the agreed scaffold from a pinned template revision, preserving Ochrance-specific agent instructions, debt, coverage and anchors. Root README and root-allow already exist; the issue's September update records remaining gaps.
+|Validate links and manifests, run the estate root-shape gate, and inspect bot-directive changes. Mark only the Ochrance checklist item; svalinn and ochrance-framework need their own changes.
+
+|6 — #42 |Documentation, access-dependent
+|Prepare wiki content from current checked-in proof and FFI documentation after the above state is established. The issue reports wiki access restrictions; no wiki write was attempted here.
+|Maintainer/access-enabled publication, working navigation and source revision references. Do not present speculative proofs or unimplemented FFI as shipped; other repositories remain separate.
+|===
+
+== First delivery: local CI timeout completion
+
+Eight missing limits across seven workflow files are the bounded first patch.
+Use 30 minutes for CodeQL and Zig FFI, 15 minutes for policy, label and quality jobs.
+No existing limits, commands, triggers, permissions, action pins or runtime sources change.
+Rollback is a revert of the timeout commit; no data or schema migration is involved.
+
+Local baseline: `bash tests/e2e_test.sh` reports 27 passed, 0 failed.
+This is structural validation, not compiled proof or cryptographic execution.
+The sandbox lacks Idris2 and Zig; their executable gates must run in PR CI.
+YAML inspection should check all jobs and compare the parsed before/after workflows,
+allowing only the eight new timeout values. Preserve all pre-existing timeouts.
+
+The current main run of Mirror to Git Forges was already failing before this patch;
+track any repeated failure separately rather than changing credentials or disabling it.
