@@ -11,8 +11,8 @@ It is a partial delivery of #44, not a claim that every web host has persistent 
 
 == User-local Zig
 
-On Linux x86_64 or aarch64, with Python 3, venv/pip and network access to
-`pypi.org` and `files.pythonhosted.org`:
+On Linux x86_64 or aarch64, with bash, curl, tar, xz and sha256sum, and
+HTTPS access to `ziglang.org`:
 
 [source,bash]
 ----
@@ -27,13 +27,17 @@ The installer does not activate the tool implicitly: unrelated projects keep
 their existing PATH. Re-running a completed installation is offline and cheap.
 A fresh container without that volume will need a new installation.
 
-This uses the PyPI `ziglang` distribution, the same alternative distribution
-route as the existing hook, not a direct ziglang.org download. The exact
-Linux wheels are SHA-256 pinned in `.devcontainer/zig-requirements.txt`;
-other platforms and source distributions are rejected. Updating requires
-reviewing the version, wheel provenance and hashes together. No unverified
-fallback mirror is tried. Python is only the distribution launcher, not a
-new application runtime dependency.
+This downloads the official release tarball
+(`https://ziglang.org/download/0.15.2/zig-<arch>-linux-0.15.2.tar.xz`) and
+checks it against the SHA-256 pinned in `.devcontainer/install-zig.sh`, taken
+from `https://ziglang.org/download/index.json`. A tarball that does not match
+is never unpacked; other platforms are rejected. No Python or pip is involved.
+Updating requires reviewing the version and both hashes together.
+
+Where `ziglang.org` is unreachable, set `OCHRANCE_ZIG_MIRROR` to an
+`https://` base URL that serves the same file names (for example a Zig
+community mirror). The pinned checksum is still enforced, so a mirror cannot
+substitute a different file. No mirror is tried unless you set one.
 
 If setup fails, it exits nonzero and releases its installation lock. A killed
 process can leave `.install-lock` behind: confirm no installer is running before
@@ -66,7 +70,10 @@ apt behavior, install Agda, or silently change the available Idris backends.
 
 * Fresh user-local Zig installation with pinned wheel hashes on Linux x86_64;
   repeat invocation reused it. aarch64 hash is supplied but execution is untested.
-* Eight offline installer boundary/restart/failure scenarios.
+  (Superseded on 2026-11-26 by the tarball installer: fresh x86_64 install,
+  offline re-run, and 25/25 Zig FFI tests with the installed compiler.)
+* Eight offline installer boundary/restart/failure scenarios (now ten,
+  adding a non-HTTPS mirror and a checksum mismatch).
 * Zig 0.15.2: 25/25 tests; C dlopen known-answer/link test passed.
 * Idris2 0.8.0: core and separate ABI packages compiled; parser suite passed,
   property suite 47/47, integration suite 55/55, Idris-to-Zig runtime suite 12/12.
