@@ -72,7 +72,7 @@ trap 'rm -rf -- "$root/.install-lock"' EXIT
 mkdir -- "$stage"
 
 curl --proto '=https' --tlsv1.2 -fsSL --retry 2 -o "$stage/$name.tar.xz" -- "$url"
-got="$(sha256sum -- "$stage/$name.tar.xz")"
+got="$(sha256sum < "$stage/$name.tar.xz")"
 got="${got%% *}"
 if [[ "$got" != "$sha256" ]]; then
   echo "ERROR: checksum mismatch for $name.tar.xz (expected $sha256, got $got)." >&2

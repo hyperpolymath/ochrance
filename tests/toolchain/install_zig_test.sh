@@ -74,4 +74,9 @@ mkdir -p "$work/tampered"
 expect_failure 'checksum mismatch' env PATH="$work/mock-bin:$PATH" \
   OCHRANCE_ZIG_HOME="$work/tampered" bash "$INSTALL"
 [[ ! -e "$work/tampered/.install-lock" && ! -e "$work/tampered/dist" && ! -e "$work/tampered/bin" ]]
-echo 'PASS: 10 offline Zig installer scenarios'
+
+# Backslashes in the installation path must not alter the parsed digest.
+expect_failure 'got 237740a8a423d3efd8b2478944de5f829e5f8db0ec1d6fc5e73d9d0eea27b347).' \
+  env PATH="$work/mock-bin:$PATH" OCHRANCE_ZIG_HOME="$work/tampered\\path" bash "$INSTALL"
+[[ ! -e "$work/tampered\\path/.install-lock" && ! -e "$work/tampered\\path/dist" ]]
+echo 'PASS: 11 offline Zig installer scenarios'
