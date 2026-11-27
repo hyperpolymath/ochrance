@@ -15,7 +15,7 @@ This repo follows the hyperpolymath standard. See `https://github.com/hyperpolym
 The full policy is canonical in `hyperpolymath/standards`. Key points:
 
 - **AffineScript** - Primary application code (compiles to typed-wasm)
-- **Deno** - Runtime & package management (replaces Node/npm/bun)
+- **Bun** - Runtime & package management, tier 1 (replaces Node/npm/Deno)
 - **Rust/SPARK** - Performance-critical, systems, WASM, CLI tools
 - **Zig** - FFI layer, memory-safe systems
 - **Idris2** - Formal verification
@@ -30,7 +30,7 @@ The full policy is canonical in `hyperpolymath/standards`. Key points:
 
 ### BANNED
 - TypeScript (use AffineScript)
-- Node.js (use Deno)
+- Node.js (use Bun)
 - Go (use Rust)
 - Python (general, except SaltStack)
 - Java/Kotlin/Swift (use Rust/Tauri/Dioxus)
